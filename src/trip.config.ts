@@ -2,7 +2,7 @@
 // point .env at a fresh Supabase project, run supabase/schema.sql, and redeploy.
 
 export const trip = {
-  name: "Tokyo 2026",
+  name: "Tokyo 2027",
   startDate: "2026-12-23", // inclusive, YYYY-MM-DD
   endDate: "2027-01-08", // inclusive
 

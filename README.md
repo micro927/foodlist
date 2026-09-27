@@ -1,4 +1,4 @@
-# Tokyo 2026 Eats
+# Tokyo 2027 Eats
 
 Our group-trip restaurant list (🍜 **Eats**) and day-by-day meal plan (🗓 **Plan**) for Micro Bua 💜 and Fair Bee 🐝.
 
