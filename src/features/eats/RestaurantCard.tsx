@@ -46,7 +46,7 @@ export function RestaurantCard({ restaurant, planned }: Props) {
   return (
     <article
       onClick={() => openSheet({ kind: 'detail', id: restaurant.id })}
-      className="flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition active:scale-[0.98]"
+      className="flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition active:scale-[0.98]"
     >
       <div className="relative">
         <Cover restaurant={restaurant} className="aspect-[4/3] w-full" />
