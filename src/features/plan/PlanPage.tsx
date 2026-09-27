@@ -227,11 +227,11 @@ function NotScheduled() {
               key={r.id}
               type="button"
               onClick={() => openSheet({ kind: 'entry', draft: { restaurant_id: r.id } })}
-              className="w-28 shrink-0 text-left active:scale-[0.97]"
+              className="flex w-28 shrink-0 flex-col text-left active:scale-[0.97]"
             >
               <Cover restaurant={r} className="aspect-square w-full rounded-2xl" emojiClass="text-3xl" />
               <p className="mt-1.5 line-clamp-2 text-xs leading-snug font-bold">{r.name}</p>
-              <p className="text-xs">
+              <p className="mt-auto pt-0.5 text-xs">
                 {trip.couples.map((c) => (
                   <span key={c.id} className={cn(!r.interested.includes(c.id) && 'opacity-20 grayscale')}>
                     {c.emoji}
