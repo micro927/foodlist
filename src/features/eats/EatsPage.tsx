@@ -70,7 +70,7 @@ export function EatsPage() {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(noFilters);
   const [sort, setSortState] = useState<SortKey>(
-    () => (local.get("foodlist:sort") as SortKey) || "best"
+    () => (local.get("foodlist:sort") as SortKey) || "name"
   );
   const [view, setViewState] = useState<"grid" | "list">(() =>
     local.get("foodlist:view") === "grid" ? "grid" : "list"
