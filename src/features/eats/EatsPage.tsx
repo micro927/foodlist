@@ -48,7 +48,7 @@ const interestOptions: Option[] = [
   { value: "both", label: "💞 Both want" },
   ...trip.couples.map((c) => ({
     value: c.id,
-    label: `${c.emoji} ${c.name} wants`,
+    label: `${c.emoji} Only ${c.name}`,
   })),
   { value: "none", label: "🤷 No one yet" },
 ];
@@ -120,11 +120,12 @@ export function EatsPage() {
         return false;
       if (filters.interest === "both" && !allCouples(r)) return false;
       if (filters.interest === "none" && r.interested.length > 0) return false;
+      // A single couple means only them — places everyone wants live under "Both want".
       if (
         filters.interest &&
         filters.interest !== "both" &&
         filters.interest !== "none" &&
-        !r.interested.includes(filters.interest)
+        (r.interested.length !== 1 || r.interested[0] !== filters.interest)
       )
         return false;
       if (filters.planned === "planned" && !counts.get(r.id)) return false;

@@ -85,7 +85,7 @@ export function RestaurantRow({ restaurant, planned }: Props) {
     >
       <Cover restaurant={restaurant} className="size-16 shrink-0 rounded-2xl" emojiClass="text-2xl" />
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-[15px] font-bold">{restaurant.name}</h3>
+        <h3 className="line-clamp-2 text-[15px] leading-snug font-bold">{restaurant.name}</h3>
         <p className="truncate text-xs text-muted">{subtitle(restaurant) || '—'}</p>
         <div className="mt-1 flex items-center gap-2">
           {restaurant.maps_url && (

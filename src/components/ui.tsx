@@ -1,5 +1,6 @@
 import { useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Drawer } from 'vaul'
+import { useBackHandler } from '@/lib/back'
 import { cn } from '@/lib/utils'
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -77,6 +78,7 @@ export function Sheet({
   children: ReactNode
   footer?: ReactNode
 }) {
+  useBackHandler(open, onClose)
   return (
     <Drawer.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <Drawer.Portal>

@@ -1,8 +1,10 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { useBackHandler } from '@/lib/back'
 
 export function PhotoViewer({ src, alt, onClose }: { src: string | null; alt: string; onClose: () => void }) {
+  useBackHandler(src !== null, onClose)
   return createPortal(
     <AnimatePresence>
       {src && (
