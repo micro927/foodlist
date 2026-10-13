@@ -3,14 +3,15 @@ import { Cover } from '@/components/Cover'
 import { CoupleToggle } from '@/components/CoupleToggle'
 import { useToggleInterest } from '@/lib/data'
 import { useMe, useOrderedCouples } from '@/lib/device'
-import type { Restaurant } from '@/lib/types'
-import { categoryEmoji, trip } from '@/trip.config'
+import { itemEmoji } from '@/lib/sections'
+import type { Item, Section } from '@/lib/types'
+import { trip } from '@/trip.config'
 import { useOpenSheet } from '../sheets'
 
-type Props = { restaurant: Restaurant; planned: number }
+type Props = { section: Section; item: Item; planned: number }
 
-function Toggles({ restaurant }: { restaurant: Restaurant }) {
-  const toggle = useToggleInterest()
+function Toggles({ section, item }: { section: Section; item: Item }) {
+  const toggle = useToggleInterest(section)
   const me = useMe()
   const couples = useOrderedCouples(trip.couples)
   return (
@@ -20,8 +21,8 @@ function Toggles({ restaurant }: { restaurant: Restaurant }) {
           key={c.id}
           couple={c}
           isMe={c.id === me}
-          active={restaurant.interested.includes(c.id)}
-          onToggle={() => toggle.mutate({ restaurant, couple: c.id })}
+          active={item.interested.includes(c.id)}
+          onToggle={() => toggle.mutate({ item, couple: c.id })}
         />
       ))}
     </div>
@@ -38,33 +39,33 @@ function PlannedBadge({ planned }: { planned: number }) {
   )
 }
 
-const subtitle = (r: Restaurant) =>
-  [r.category && `${categoryEmoji(r.category)} ${r.category}`, r.area].filter(Boolean).join(' · ')
+export const itemSubtitle = (section: Section, r: Item) =>
+  [r.category && `${itemEmoji(section, r)} ${r.category}`, r.area].filter(Boolean).join(' · ')
 
-export function RestaurantCard({ restaurant, planned }: Props) {
+export function ItemCard({ section, item, planned }: Props) {
   const openSheet = useOpenSheet()
   return (
     <article
-      onClick={() => openSheet({ kind: 'detail', id: restaurant.id })}
+      onClick={() => openSheet({ kind: 'detail', section, id: item.id })}
       className="flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition active:scale-[0.98]"
     >
       <div className="relative">
-        <Cover restaurant={restaurant} className="aspect-[4/3] w-full" />
+        <Cover of={item} emoji={itemEmoji(section, item)} className="aspect-[4/3] w-full" />
         <div className="absolute top-2 left-2">
           <PlannedBadge planned={planned} />
         </div>
       </div>
       <div className="flex flex-1 flex-col p-3 pt-2.5">
-        <h3 className="line-clamp-2 text-[15px] leading-snug font-bold">{restaurant.name}</h3>
-        <p className="mt-0.5 truncate text-xs text-muted">{subtitle(restaurant) || ' '}</p>
+        <h3 className="line-clamp-2 text-[15px] leading-snug font-bold">{item.name}</h3>
+        <p className="mt-0.5 truncate text-xs text-muted">{itemSubtitle(section, item) || ' '}</p>
         <div className="mt-auto flex items-center justify-between pt-2.5">
-          <Toggles restaurant={restaurant} />
+          <Toggles section={section} item={item} />
           <button
             type="button"
             aria-label="Add to plan"
             onClick={(e) => {
               e.stopPropagation()
-              openSheet({ kind: 'entry', draft: { restaurant_id: restaurant.id } })
+              openSheet({ kind: 'entry', section, draft: { item_id: item.id } })
             }}
             className="grid size-9 place-items-center rounded-full text-primary active:bg-primary-soft"
           >
@@ -76,21 +77,21 @@ export function RestaurantCard({ restaurant, planned }: Props) {
   )
 }
 
-export function RestaurantRow({ restaurant, planned }: Props) {
+export function ItemRow({ section, item, planned }: Props) {
   const openSheet = useOpenSheet()
   return (
     <article
-      onClick={() => openSheet({ kind: 'detail', id: restaurant.id })}
+      onClick={() => openSheet({ kind: 'detail', section, id: item.id })}
       className="flex cursor-pointer items-center gap-3 p-2.5 pr-3 transition active:bg-canvas"
     >
-      <Cover restaurant={restaurant} className="size-16 shrink-0 rounded-2xl" emojiClass="text-2xl" />
+      <Cover of={item} emoji={itemEmoji(section, item)} className="size-16 shrink-0 rounded-2xl" emojiClass="text-2xl" />
       <div className="min-w-0 flex-1">
-        <h3 className="line-clamp-2 text-[15px] leading-snug font-bold">{restaurant.name}</h3>
-        <p className="truncate text-xs text-muted">{subtitle(restaurant) || '—'}</p>
+        <h3 className="line-clamp-2 text-[15px] leading-snug font-bold">{item.name}</h3>
+        <p className="truncate text-xs text-muted">{itemSubtitle(section, item) || '—'}</p>
         <div className="mt-1 flex items-center gap-2">
-          {restaurant.maps_url && (
+          {item.maps_url && (
             <a
-              href={restaurant.maps_url}
+              href={item.maps_url}
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
@@ -106,7 +107,7 @@ export function RestaurantRow({ restaurant, planned }: Props) {
           )}
         </div>
       </div>
-      <Toggles restaurant={restaurant} />
+      <Toggles section={section} item={item} />
     </article>
   )
 }

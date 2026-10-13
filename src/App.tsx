@@ -1,6 +1,13 @@
 import { useState, type ReactNode, type SubmitEventHandler } from "react";
 import { motion } from "motion/react";
-import { CalendarDays, Lock, UtensilsCrossed, WifiOff } from "lucide-react";
+import {
+  CalendarDays,
+  Lock,
+  Map as MapIcon,
+  MapPin,
+  UtensilsCrossed,
+  WifiOff,
+} from "lucide-react";
 import { Toaster } from "sonner";
 import { Button, inputClass } from "@/components/ui";
 import { isDemo } from "@/lib/api";
@@ -9,7 +16,8 @@ import { useLiveUpdates } from "@/lib/data";
 import { useOnline } from "@/lib/device";
 import { cn, local } from "@/lib/utils";
 import { trip } from "@/trip.config";
-import { EatsPage } from "@/features/eats/EatsPage";
+import { AreasPage } from "@/features/areas/AreasPage";
+import { ItemsPage } from "@/features/items/ItemsPage";
 import { PlanPage } from "@/features/plan/PlanPage";
 import { SheetsProvider } from "@/features/sheets";
 
@@ -45,8 +53,11 @@ export function App() {
   );
 }
 
-type Tab = "eats" | "plan";
-const readTab = (): Tab => (location.hash === "#plan" ? "plan" : "eats");
+type Tab = "eats" | "places" | "plan" | "areas";
+const tabs: Tab[] = ["eats", "places", "plan", "areas"];
+// Eats lives at the bare path; every other tab has its own hash.
+const readTab = (): Tab =>
+  tabs.find((t) => t !== "eats" && location.hash === `#${t}`) ?? "eats";
 
 function Shell() {
   useLiveUpdates();
@@ -56,12 +67,12 @@ function Shell() {
 
   const go = (next: Tab) => {
     if (next === tab) return window.scrollTo({ top: 0, behavior: "smooth" });
-    replaceUrl(next === "plan" ? "#plan" : location.pathname);
+    replaceUrl(next === "eats" ? location.pathname : `#${next}`);
     setTab(next);
     window.scrollTo({ top: 0 });
   };
-  // Back from Plan returns to Eats.
-  useBackHandler(tab === "plan", () => go("eats"));
+  // Back from any other tab returns to Eats.
+  useBackHandler(tab !== "eats", () => go("eats"));
 
   return (
     <SheetsProvider>
@@ -78,15 +89,29 @@ function Shell() {
         </div>
       )}
 
-      {tab === "eats" ? <EatsPage /> : <PlanPage />}
+      {tab === "eats" ? (
+        <ItemsPage key="eats" section="eats" />
+      ) : tab === "places" ? (
+        <ItemsPage key="places" section="places" />
+      ) : tab === "plan" ? (
+        <PlanPage />
+      ) : (
+        <AreasPage />
+      )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="mx-auto grid h-16 max-w-md grid-cols-2">
+        <div className="mx-auto grid h-16 max-w-md grid-cols-4">
           <TabButton
             active={tab === "eats"}
             onClick={() => go("eats")}
             icon={<UtensilsCrossed className="size-6" />}
             label="Eats"
+          />
+          <TabButton
+            active={tab === "places"}
+            onClick={() => go("places")}
+            icon={<MapPin className="size-6" />}
+            label="Places"
           />
           {/* The Plan icon always wears the primary colour — it's the trip planner call to action. */}
           <TabButton
@@ -94,6 +119,12 @@ function Shell() {
             onClick={() => go("plan")}
             icon={<CalendarDays className="size-6 text-primary" />}
             label="Plan"
+          />
+          <TabButton
+            active={tab === "areas"}
+            onClick={() => go("areas")}
+            icon={<MapIcon className="size-6" />}
+            label="Areas"
           />
         </div>
       </nav>

@@ -1,15 +1,22 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
-import { RestaurantDetailSheet } from './eats/RestaurantDetailSheet'
-import { RestaurantFormSheet } from './eats/RestaurantFormSheet'
-import { DeleteRestaurantSheet } from './eats/DeleteRestaurantSheet'
+import type { Section } from '@/lib/types'
+import { ItemDetailSheet } from './items/ItemDetailSheet'
+import { ItemFormSheet } from './items/ItemFormSheet'
+import { DeleteItemSheet } from './items/DeleteItemSheet'
 import { EntrySheet, type EntryDraft } from './plan/EntrySheet'
+import { AreaDetailSheet } from './areas/AreaDetailSheet'
+import { AreaFormSheet } from './areas/AreaFormSheet'
+import { DeleteAreaSheet } from './areas/DeleteAreaSheet'
 
 /** Every bottom sheet in the app. Opening one closes whichever was open. */
 export type SheetRequest =
-  | { kind: 'detail'; id: string }
-  | { kind: 'form'; id?: string }
-  | { kind: 'delete'; id: string }
-  | { kind: 'entry'; draft: EntryDraft }
+  | { kind: 'detail'; section: Section; id: string }
+  | { kind: 'form'; section: Section; id?: string }
+  | { kind: 'delete'; section: Section; id: string }
+  | { kind: 'entry'; section: Section; draft: EntryDraft }
+  | { kind: 'area'; id: string }
+  | { kind: 'areaForm'; id?: string }
+  | { kind: 'areaDelete'; id: string }
 
 type SheetState = SheetRequest & { nonce: number }
 
@@ -25,10 +32,13 @@ export function SheetsProvider({ children }: { children: ReactNode }) {
   return (
     <OpenSheetContext.Provider value={open}>
       {children}
-      <RestaurantDetailSheet state={of('detail')} onClose={close} />
-      <RestaurantFormSheet state={of('form')} onClose={close} />
-      <DeleteRestaurantSheet state={of('delete')} onClose={close} />
+      <ItemDetailSheet state={of('detail')} onClose={close} />
+      <ItemFormSheet state={of('form')} onClose={close} />
+      <DeleteItemSheet state={of('delete')} onClose={close} />
       <EntrySheet state={of('entry')} onClose={close} />
+      <AreaDetailSheet state={of('area')} onClose={close} />
+      <AreaFormSheet state={of('areaForm')} onClose={close} />
+      <DeleteAreaSheet state={of('areaDelete')} onClose={close} />
     </OpenSheetContext.Provider>
   )
 }

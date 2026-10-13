@@ -5,43 +5,46 @@ import { Cover } from '@/components/Cover'
 import { CoupleToggle } from '@/components/CoupleToggle'
 import { PhotoViewer } from '@/components/PhotoViewer'
 import { api } from '@/lib/api'
-import { usePlan, useRestaurantMap, useToggleInterest } from '@/lib/data'
+import { useItemMap, usePlan, useToggleInterest } from '@/lib/data'
 import { useMe, useOrderedCouples } from '@/lib/device'
+import { itemEmoji, sections } from '@/lib/sections'
+import type { Section } from '@/lib/types'
 import { formatDay, hostLabel } from '@/lib/utils'
-import { categoryEmoji, goingLabel, slotById, trip } from '@/trip.config'
+import { goingLabel, slotById, trip } from '@/trip.config'
 import { useOpenSheet } from '../sheets'
 
-export function RestaurantDetailSheet({ state, onClose }: { state: { id: string } | null; onClose: () => void }) {
+export function ItemDetailSheet({ state, onClose }: { state: { section: Section; id: string } | null; onClose: () => void }) {
   const last = useSticky(state)
-  const restaurant = useRestaurantMap().get(last?.id ?? '')
-  const { data: plan = [] } = usePlan()
+  const section = last?.section ?? 'eats'
+  const item = useItemMap(section).get(last?.id ?? '')
+  const { data: plan = [] } = usePlan(section)
   const openSheet = useOpenSheet()
-  const toggle = useToggleInterest()
+  const toggle = useToggleInterest(section)
   const me = useMe()
   const couples = useOrderedCouples(trip.couples)
   const [viewing, setViewing] = useState(false)
 
-  if (!restaurant) return <Sheet open={false} onClose={onClose} title="" children={null} />
+  if (!item) return <Sheet open={false} onClose={onClose} title="" children={null} />
 
-  const slotOrder = trip.slots.map((s) => s.id as string)
+  const slotOrder = sections[section].slots.map((s) => s.id as string)
   const entries = plan
-    .filter((e) => e.restaurant_id === restaurant.id)
+    .filter((e) => e.item_id === item.id)
     .sort((a, b) => a.day.localeCompare(b.day) || slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot))
 
   return (
     <Sheet
       open={state !== null}
       onClose={onClose}
-      title={restaurant.name}
+      title={item.name}
       footer={
         <div className="flex gap-2">
-          <Button className="flex-1" onClick={() => openSheet({ kind: 'entry', draft: { restaurant_id: restaurant.id } })}>
+          <Button className="flex-1" onClick={() => openSheet({ kind: 'entry', section, draft: { item_id: item.id } })}>
             <CalendarPlus className="size-5" /> Add to plan
           </Button>
-          <Button variant="outline" size="icon" className="size-12" aria-label="Edit" onClick={() => openSheet({ kind: 'form', id: restaurant.id })}>
+          <Button variant="outline" size="icon" className="size-12" aria-label="Edit" onClick={() => openSheet({ kind: 'form', section, id: item.id })}>
             <Pencil className="size-5" />
           </Button>
-          <Button variant="danger" size="icon" className="size-12" aria-label="Delete" onClick={() => openSheet({ kind: 'delete', id: restaurant.id })}>
+          <Button variant="danger" size="icon" className="size-12" aria-label="Delete" onClick={() => openSheet({ kind: 'delete', section, id: item.id })}>
             <Trash2 className="size-5" />
           </Button>
         </div>
@@ -50,40 +53,40 @@ export function RestaurantDetailSheet({ state, onClose }: { state: { id: string 
       <button
         type="button"
         className="block w-full overflow-hidden rounded-3xl"
-        onClick={() => restaurant.cover_path && setViewing(true)}
+        onClick={() => item.cover_path && setViewing(true)}
         aria-label="View photo full screen"
       >
-        <Cover restaurant={restaurant} className="aspect-[4/3] w-full" emojiClass="text-6xl" />
+        <Cover of={item} emoji={itemEmoji(section, item)} className="aspect-[4/3] w-full" emojiClass="text-6xl" />
       </button>
 
       <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
-        {restaurant.category && (
+        {item.category && (
           <span>
-            {categoryEmoji(restaurant.category)} {restaurant.category}
+            {itemEmoji(section, item)} {item.category}
           </span>
         )}
-        {restaurant.area && (
+        {item.area && (
           <span className="inline-flex items-center gap-1">
-            <MapPin className="size-3.5" /> {restaurant.area}
+            <MapPin className="size-3.5" /> {item.area}
           </span>
         )}
       </p>
 
-      {restaurant.notes && <p className="mt-3 rounded-2xl bg-canvas p-3.5 text-[15px] whitespace-pre-wrap">{restaurant.notes}</p>}
+      {item.notes && <p className="mt-3 rounded-2xl bg-canvas p-3.5 text-[15px] whitespace-pre-wrap">{item.notes}</p>}
 
-      {(restaurant.maps_url || restaurant.inspo_url) && (
+      {(item.maps_url || item.inspo_url) && (
         <div className="mt-3 flex gap-2">
-          {restaurant.maps_url && (
-            <a href={restaurant.maps_url} target="_blank" rel="noreferrer" className="flex-1">
+          {item.maps_url && (
+            <a href={item.maps_url} target="_blank" rel="noreferrer" className="flex-1">
               <Button variant="soft" size="sm" className="pointer-events-none w-full">
                 <MapPin className="size-4" /> Open in Maps
               </Button>
             </a>
           )}
-          {restaurant.inspo_url && (
-            <a href={restaurant.inspo_url} target="_blank" rel="noreferrer" className="flex-1">
+          {item.inspo_url && (
+            <a href={item.inspo_url} target="_blank" rel="noreferrer" className="flex-1">
               <Button variant="outline" size="sm" className="pointer-events-none w-full">
-                <ExternalLink className="size-4" /> {hostLabel(restaurant.inspo_url)}
+                <ExternalLink className="size-4" /> {hostLabel(item.inspo_url)}
               </Button>
             </a>
           )}
@@ -98,8 +101,8 @@ export function RestaurantDetailSheet({ state, onClose }: { state: { id: string 
             couple={c}
             labeled
             isMe={c.id === me}
-            active={restaurant.interested.includes(c.id)}
-            onToggle={() => toggle.mutate({ restaurant, couple: c.id })}
+            active={item.interested.includes(c.id)}
+            onToggle={() => toggle.mutate({ item, couple: c.id })}
           />
         ))}
       </div>
@@ -113,7 +116,7 @@ export function RestaurantDetailSheet({ state, onClose }: { state: { id: string 
             <li key={e.id}>
               <button
                 type="button"
-                onClick={() => openSheet({ kind: 'entry', draft: e })}
+                onClick={() => openSheet({ kind: 'entry', section, draft: e })}
                 className="flex w-full items-center gap-3 rounded-2xl border border-line px-3.5 py-2.5 text-left text-sm active:bg-canvas"
               >
                 <span className="text-lg">{slotById(e.slot)?.emoji}</span>
@@ -132,8 +135,8 @@ export function RestaurantDetailSheet({ state, onClose }: { state: { id: string 
       )}
 
       <PhotoViewer
-        src={viewing && restaurant.cover_path ? api.coverUrl(restaurant.cover_path) : null}
-        alt={restaurant.name}
+        src={viewing && item.cover_path ? api.coverUrl(item.cover_path) : null}
+        alt={item.name}
         onClose={() => setViewing(false)}
       />
     </Sheet>

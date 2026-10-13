@@ -1,6 +1,6 @@
 # Tokyo 2027 Eats
 
-Our group-trip restaurant list (🍜 **Eats**) and day-by-day meal plan (🗓 **Plan**) for Micro Bua 💜 and Fair Bee 🐝.
+Our group-trip restaurant list (🍜 **Eats**), things to do (📍 **Places**), day-by-day plan for both (🗓 **Plan**) and neighbourhood guides (🗺️ **Areas**) for Micro Bua 💜 and Fair Bee 🐝. Terms are defined in [`CONTEXT.md`](CONTEXT.md).
 
 Vite + React + TypeScript, Tailwind v4, TanStack Query, Supabase (Postgres, Storage, Realtime), deployed on Vercel. Installable as a PWA.
 
@@ -34,7 +34,7 @@ npm run dev
 
 ## Next trip
 
-Everything trip-specific is in [`src/trip.config.ts`](src/trip.config.ts): name, dates, couples, meal slots, preset areas, category emoji and main colour. For a new trip:
+Everything trip-specific is in [`src/trip.config.ts`](src/trip.config.ts): name, dates, couples, meal and place slots, place categories, Good for tags, preset areas, category emoji and main colour. For a new trip:
 
 1. Edit that file.
 2. Point `.env` at a fresh Supabase project and run `supabase db push`.
@@ -47,6 +47,8 @@ Everything trip-specific is in [`src/trip.config.ts`](src/trip.config.ts): name,
 | --- | --- |
 | `src/lib/api.ts` | The only module that talks to storage (Supabase or demo localStorage) |
 | `src/lib/data.ts` | TanStack Query hooks, optimistic ♥ toggles, live updates |
-| `src/features/eats/` | List, cards, filters, add/edit form, detail and delete sheets |
-| `src/features/plan/` | Two-lane day timeline, "Not scheduled yet", plan entry sheet |
+| `src/lib/sections.ts` | What differs between Eats and Places (names, category picker, plan slots) |
+| `src/features/items/` | The Eats and Places tabs: list, cards, filters, add/edit form, detail and delete sheets |
+| `src/features/areas/` | Areas list, detail, form (with restaurant/place pickers) and delete sheet |
+| `src/features/plan/` | Eats / Places switch, two-lane day timeline, "Not scheduled yet", plan entry sheet |
 | `src/features/sheets.tsx` | Opens and closes every bottom sheet |

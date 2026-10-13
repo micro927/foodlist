@@ -1,16 +1,18 @@
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, Sheet, useSticky } from '@/components/ui'
-import { useDeleteRestaurant, usePlanCounts, useRestaurantMap } from '@/lib/data'
+import { useDeleteItem, useItemMap, usePlanCounts } from '@/lib/data'
+import type { Section } from '@/lib/types'
 
-export function DeleteRestaurantSheet({ state, onClose }: { state: { id: string } | null; onClose: () => void }) {
+export function DeleteItemSheet({ state, onClose }: { state: { section: Section; id: string } | null; onClose: () => void }) {
   const last = useSticky(state)
-  const restaurant = useRestaurantMap().get(last?.id ?? '')
-  const planned = usePlanCounts().get(last?.id ?? '') ?? 0
-  const remove = useDeleteRestaurant()
+  const section = last?.section ?? 'eats'
+  const item = useItemMap(section).get(last?.id ?? '')
+  const planned = usePlanCounts(section).get(last?.id ?? '') ?? 0
+  const remove = useDeleteItem(section)
 
   return (
-    <Sheet open={state !== null && !!restaurant} onClose={onClose} title={`Delete ${restaurant?.name ?? ''}?`}>
+    <Sheet open={state !== null && !!item} onClose={onClose} title={`Delete ${item?.name ?? ''}?`}>
       <p className="text-[15px] text-muted">
         {planned > 0
           ? `It's in ${planned} plan ${planned === 1 ? 'entry' : 'entries'} — ${planned === 1 ? 'it' : 'they'} will be removed too.`
@@ -24,10 +26,10 @@ export function DeleteRestaurantSheet({ state, onClose }: { state: { id: string 
           className="flex-1 bg-red-600 shadow-red-600/30"
           disabled={remove.isPending}
           onClick={() =>
-            restaurant &&
-            remove.mutate(restaurant, {
+            item &&
+            remove.mutate(item, {
               onSuccess: () => {
-                toast.success(`${restaurant.name} deleted`)
+                toast.success(`${item.name} deleted`)
                 onClose()
               },
             })

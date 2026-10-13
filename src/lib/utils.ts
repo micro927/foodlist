@@ -54,6 +54,23 @@ export function formatDay(iso: string) {
   return day ? `${day.weekday} ${day.dayMonth} · Day ${day.number}` : iso
 }
 
+/** Adds https:// to a typed link; empty means no link. */
+export function withScheme(url: string) {
+  const trimmed = url.trim()
+  if (!trimmed) return null
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
+
+/** Distinct non-empty values, case-insensitive, keeping the first spelling. */
+export function unique(values: string[]) {
+  const seen = new Map<string, string>()
+  for (const v of values) {
+    const t = v.trim()
+    if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t)
+  }
+  return [...seen.values()]
+}
+
 export function hostLabel(url: string) {
   try {
     const host = new URL(url).hostname.replace(/^www\./, '')

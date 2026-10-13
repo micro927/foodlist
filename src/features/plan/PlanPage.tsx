@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'motion/react'
 import { ChevronDown, Clock, Plus } from 'lucide-react'
 import { Cover } from '@/components/Cover'
-import { usePlan, usePlanCounts, useRestaurantMap, useRestaurants } from '@/lib/data'
+import { useItemMap, useItems, usePlan, usePlanCounts } from '@/lib/data'
 import { useMe } from '@/lib/device'
-import type { PlanEntry } from '@/lib/types'
+import { itemEmoji, sections } from '@/lib/sections'
+import type { PlanEntry, Section } from '@/lib/types'
 import { cn, local, todayIso, tripDays } from '@/lib/utils'
 import { coupleById, trip, type SlotId } from '@/trip.config'
 import { useOpenSheet } from '../sheets'
+
+type Slot = (typeof sections)[Section]['slots'][number]
+const TAB_KEY = 'foodlist:plan-tab'
 
 const isShared = (e: PlanEntry) => trip.couples.every((c) => e.going.includes(c.id))
 const byTime = (a: PlanEntry, b: PlanEntry) => (a.time ?? '99').localeCompare(b.time ?? '99') || a.position - b.position
 
 export function PlanPage() {
-  const { data: plan = [] } = usePlan()
+  const [section, setSectionState] = useState<Section>(() => (local.get(TAB_KEY) === 'places' ? 'places' : 'eats'))
+  const setSection = (s: Section) => (setSectionState(s), local.set(TAB_KEY, s))
+  const { data: plan = [] } = usePlan(section)
   const me = useMe()
   const today = todayIso()
   const [activeDay, setActiveDay] = useState(tripDays[0].date)
@@ -58,8 +65,13 @@ export function PlanPage() {
     <div className="pb-32">
       <header className="sticky top-0 z-20 border-b border-line/70 bg-canvas/90 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur-xl">
         <div className="mx-auto max-w-3xl px-4">
-          <p className="text-[11px] font-bold tracking-[0.14em] text-primary uppercase">{trip.name}</p>
-          <h1 className="text-2xl leading-tight font-extrabold">Plan</h1>
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <p className="text-[11px] font-bold tracking-[0.14em] text-primary uppercase">{trip.name}</p>
+              <h1 className="text-2xl leading-tight font-extrabold">Plan</h1>
+            </div>
+            <SectionSwitch value={section} onChange={setSection} />
+          </div>
 
           <div ref={chipStrip} className="no-scrollbar -mx-4 mt-2.5 flex gap-1.5 overflow-x-auto px-4 pb-2.5">
             {tripDays.map((d) => {
@@ -97,7 +109,7 @@ export function PlanPage() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 pt-4">
-        <NotScheduled />
+        <NotScheduled section={section} />
         {tripDays.map((d) => (
           <section key={d.date} id={`day-${d.date}`} data-day={d.date} className="scroll-mt-48">
             <h2 className="mb-2 flex items-baseline gap-2 px-1">
@@ -108,8 +120,8 @@ export function PlanPage() {
               {d.date === today && <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-white">Today</span>}
             </h2>
             <div className="space-y-1 rounded-3xl border border-line bg-surface p-2">
-              {trip.slots.map((s) => (
-                <SlotRow key={s.id} day={d.date} slot={s} entries={grouped.get(d.date)?.get(s.id) ?? []} />
+              {sections[section].slots.map((s) => (
+                <SlotRow key={s.id} section={section} day={d.date} slot={s} entries={grouped.get(d.date)?.get(s.id) ?? []} />
               ))}
             </div>
           </section>
@@ -119,9 +131,9 @@ export function PlanPage() {
   )
 }
 
-function SlotRow({ day, slot, entries }: { day: string; slot: (typeof trip.slots)[number]; entries: PlanEntry[] }) {
+function SlotRow({ section, day, slot, entries }: { section: Section; day: string; slot: Slot; entries: PlanEntry[] }) {
   const openSheet = useOpenSheet()
-  const add = () => openSheet({ kind: 'entry', draft: { day, slot: slot.id } })
+  const add = () => openSheet({ kind: 'entry', section, draft: { day, slot: slot.id } })
 
   if (entries.length === 0) {
     return (
@@ -149,17 +161,17 @@ function SlotRow({ day, slot, entries }: { day: string; slot: (typeof trip.slots
       </div>
       <div className="grid grid-flow-row-dense grid-cols-2 gap-1.5">
         {entries.map((e) => (
-          <EntryBlock key={e.id} entry={e} />
+          <EntryBlock key={e.id} section={section} entry={e} />
         ))}
       </div>
     </div>
   )
 }
 
-function EntryBlock({ entry }: { entry: PlanEntry }) {
+function EntryBlock({ section, entry }: { section: Section; entry: PlanEntry }) {
   const openSheet = useOpenSheet()
-  const restaurant = useRestaurantMap().get(entry.restaurant_id)
-  if (!restaurant) return null
+  const item = useItemMap(section).get(entry.item_id)
+  if (!item) return null
 
   const shared = isShared(entry)
   const couple = shared ? undefined : coupleById(entry.going[0])
@@ -169,7 +181,7 @@ function EntryBlock({ entry }: { entry: PlanEntry }) {
   return (
     <button
       type="button"
-      onClick={() => openSheet({ kind: 'entry', draft: entry })}
+      onClick={() => openSheet({ kind: 'entry', section, draft: entry })}
       style={{
         gridColumn: shared ? '1 / -1' : `${column}`,
         background: shared ? `linear-gradient(90deg, ${a.soft}, ${b.soft})` : couple?.soft,
@@ -177,16 +189,16 @@ function EntryBlock({ entry }: { entry: PlanEntry }) {
       }}
       className={cn('flex min-w-0 items-center gap-2.5 rounded-2xl p-2 text-left transition active:scale-[0.98]', !shared && 'border-l-4')}
     >
-      <Cover restaurant={restaurant} className="size-11 shrink-0 rounded-xl" emojiClass="text-xl" />
+      <Cover of={item} emoji={itemEmoji(section, item)} className="size-11 shrink-0 rounded-xl" emojiClass="text-xl" />
       <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-sm leading-snug font-bold">{restaurant.name}</span>
+        <span className="line-clamp-2 text-sm leading-snug font-bold">{item.name}</span>
         <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-ink/60">
           {entry.time ? (
             <>
               <Clock className="size-3" /> {entry.time}
             </>
           ) : (
-            restaurant.category || restaurant.area
+            item.category || item.area
           )}
           {shared && <span className="ml-1">· {trip.couples.map((c) => c.emoji).join('')} Together</span>}
         </span>
@@ -195,21 +207,23 @@ function EntryBlock({ entry }: { entry: PlanEntry }) {
   )
 }
 
-/** Places someone wants that aren't in the plan yet. */
-function NotScheduled() {
-  const { data: restaurants = [] } = useRestaurants()
-  const counts = usePlanCounts()
+/** Restaurants or places someone wants that aren't in the plan yet. */
+function NotScheduled({ section }: { section: Section }) {
+  const { data: items = [] } = useItems(section)
+  const counts = usePlanCounts(section)
   const openSheet = useOpenSheet()
-  const [open, setOpen] = useState(() => local.get('foodlist:unscheduled') !== 'closed')
+  const key = `${sections[section].storagePrefix}unscheduled`
+  const [openBySection, setOpenBySection] = useState<Partial<Record<Section, boolean>>>({})
+  const open = openBySection[section] ?? local.get(key) !== 'closed'
 
-  const list = restaurants
+  const list = items
     .filter((r) => r.interested.length > 0 && !counts.get(r.id))
     .sort((a, b) => b.interested.length - a.interested.length || a.name.localeCompare(b.name))
   if (list.length === 0) return null
 
   const toggle = () => {
-    local.set('foodlist:unscheduled', open ? 'closed' : 'open')
-    setOpen(!open)
+    local.set(key, open ? 'closed' : 'open')
+    setOpenBySection((o) => ({ ...o, [section]: !open }))
   }
 
   return (
@@ -226,10 +240,10 @@ function NotScheduled() {
             <button
               key={r.id}
               type="button"
-              onClick={() => openSheet({ kind: 'entry', draft: { restaurant_id: r.id } })}
+              onClick={() => openSheet({ kind: 'entry', section, draft: { item_id: r.id } })}
               className="flex w-28 shrink-0 flex-col text-left active:scale-[0.97]"
             >
-              <Cover restaurant={r} className="aspect-square w-full rounded-2xl" emojiClass="text-3xl" />
+              <Cover of={r} emoji={itemEmoji(section, r)} className="aspect-square w-full rounded-2xl" emojiClass="text-3xl" />
               <p className="mt-1.5 line-clamp-2 text-xs leading-snug font-bold">{r.name}</p>
               <p className="mt-auto pt-0.5 text-xs">
                 {trip.couples.map((c) => (
@@ -243,5 +257,35 @@ function NotScheduled() {
         </div>
       )}
     </section>
+  )
+}
+
+/** Eats | Places switch in the Plan header. */
+function SectionSwitch({ value, onChange }: { value: Section; onChange: (s: Section) => void }) {
+  const options: { id: Section; label: string }[] = [
+    { id: 'eats', label: `🍜 ${sections.eats.title}` },
+    { id: 'places', label: `🎡 ${sections.places.title}` },
+  ]
+  return (
+    <div className="flex rounded-full border border-line bg-surface p-1">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          aria-pressed={value === o.id}
+          onClick={() => onChange(o.id)}
+          className={cn('relative h-8 rounded-full px-3 text-sm font-bold transition', value === o.id ? 'text-primary' : 'text-muted')}
+        >
+          {value === o.id && (
+            <motion.span
+              layoutId="plan-section-pill"
+              className="absolute inset-0 rounded-full bg-primary-soft"
+              transition={{ type: 'spring', bounce: 0.25, duration: 0.4 }}
+            />
+          )}
+          <span className="relative">{o.label}</span>
+        </button>
+      ))}
+    </div>
   )
 }

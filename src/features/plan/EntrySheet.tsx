@@ -4,27 +4,31 @@ import { toast } from 'sonner'
 import { Cover } from '@/components/Cover'
 import { CoupleToggle } from '@/components/CoupleToggle'
 import { Button, Chip, inputClass, Sheet, useSticky } from '@/components/ui'
-import { useDeleteEntry, usePlanCounts, useRestaurantMap, useRestaurants, useSaveEntry } from '@/lib/data'
+import { useDeleteEntry, useItemMap, useItems, usePlanCounts, useSaveEntry } from '@/lib/data'
 import { useMe, useOrderedCouples } from '@/lib/device'
-import type { PlanEntry, Restaurant } from '@/lib/types'
+import { itemEmoji, sections } from '@/lib/sections'
+import type { Item, PlanEntry, Section } from '@/lib/types'
 import { cn, todayIso, tripDays } from '@/lib/utils'
 import { coupleIds, trip, type CoupleId, type SlotId } from '@/trip.config'
 
 /** A plan entry being created (no id) or edited. Anything missing gets a sensible default. */
-export type EntryDraft = Partial<Pick<PlanEntry, 'id' | 'restaurant_id' | 'day' | 'slot' | 'time' | 'going'>>
+export type EntryDraft = Partial<Pick<PlanEntry, 'id' | 'item_id' | 'day' | 'slot' | 'time' | 'going'>>
 
-type State = { draft: EntryDraft; nonce: number }
+type State = { section: Section; draft: EntryDraft; nonce: number }
 
 export function EntrySheet({ state, onClose }: { state: State | null; onClose: () => void }) {
   const last = useSticky(state)
-  // Starts in picker mode when no restaurant was given; "Change" switches back to it.
+  // Starts in picker mode when no item was given; "Change" switches back to it.
   const [pickOverride, setPickOverride] = useState<{ nonce: number; value: boolean } | null>(null)
-  const picking = pickOverride && pickOverride.nonce === last?.nonce ? pickOverride.value : !last?.draft.restaurant_id
+  const picking = pickOverride && pickOverride.nonce === last?.nonce ? pickOverride.value : !last?.draft.item_id
   const setPicking = (value: boolean) => last && setPickOverride({ nonce: last.nonce, value })
+  const noun = sections[last?.section ?? 'eats'].noun
 
   return (
-    <Sheet open={state !== null} onClose={onClose} title={picking ? 'Pick a place' : last?.draft.id ? 'Edit plan' : 'Add to plan'}>
-      {last && <EntryForm key={last.nonce} draft={last.draft} picking={picking} setPicking={setPicking} onDone={onClose} />}
+    <Sheet open={state !== null} onClose={onClose} title={picking ? `Pick a ${noun}` : last?.draft.id ? 'Edit plan' : 'Add to plan'}>
+      {last && (
+        <EntryForm key={last.nonce} section={last.section} draft={last.draft} picking={picking} setPicking={setPicking} onDone={onClose} />
+      )}
     </Sheet>
   )
 }
@@ -35,42 +39,46 @@ const defaultDay = () => {
 }
 
 /** New entries start with whoever is interested; if nobody is, everyone. */
-const defaultGoing = (r: Restaurant | undefined): CoupleId[] => (r?.interested.length ? [...r.interested] : [...coupleIds])
+const defaultGoing = (r: Item | undefined): CoupleId[] => (r?.interested.length ? [...r.interested] : [...coupleIds])
 
 function EntryForm({
+  section,
   draft,
   picking,
   setPicking,
   onDone,
 }: {
+  section: Section
   draft: EntryDraft
   picking: boolean
   setPicking: (v: boolean) => void
   onDone: () => void
 }) {
-  const restaurants = useRestaurantMap()
-  const save = useSaveEntry()
-  const remove = useDeleteEntry()
+  const meta = sections[section]
+  const items = useItemMap(section)
+  const save = useSaveEntry(section)
+  const remove = useDeleteEntry(section)
   const me = useMe()
   const couples = useOrderedCouples(trip.couples)
 
-  const [restaurantId, setRestaurantId] = useState(draft.restaurant_id)
+  const [itemId, setItemId] = useState(draft.item_id)
   const [day, setDay] = useState(draft.day ?? defaultDay())
-  const [slot, setSlot] = useState<SlotId>(draft.slot ?? 'dinner')
+  const [slot, setSlot] = useState<SlotId>(draft.slot ?? meta.defaultSlot)
   const [time, setTime] = useState(draft.time ?? '')
-  const [going, setGoing] = useState<CoupleId[]>(draft.going ?? defaultGoing(restaurants.get(draft.restaurant_id ?? '')))
-  const restaurant = restaurants.get(restaurantId ?? '')
+  const [going, setGoing] = useState<CoupleId[]>(draft.going ?? defaultGoing(items.get(draft.item_id ?? '')))
+  const item = items.get(itemId ?? '')
 
   const dayStrip = useRef<HTMLDivElement>(null)
   useEffect(() => {
     dayStrip.current?.querySelector('[data-selected="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' })
   }, [picking])
 
-  if (picking || !restaurant) {
+  if (picking || !item) {
     return (
-      <RestaurantPicker
+      <ItemPicker
+        section={section}
         onPick={(r) => {
-          setRestaurantId(r.id)
+          setItemId(r.id)
           if (!draft.going) setGoing(defaultGoing(r))
           setPicking(false)
         }}
@@ -80,10 +88,10 @@ function EntryForm({
 
   const submit = () =>
     save.mutate(
-      { id: draft.id, fields: { restaurant_id: restaurant.id, day, slot, time: time || null, going } },
+      { id: draft.id, fields: { item_id: item.id, day, slot, time: time || null, going } },
       {
         onSuccess: () => {
-          toast.success(draft.id ? 'Plan updated' : `${restaurant.name} added to the plan`)
+          toast.success(draft.id ? 'Plan updated' : `${item.name} added to the plan`)
           onDone()
         },
       },
@@ -92,10 +100,10 @@ function EntryForm({
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3 rounded-2xl border border-line p-2 pr-3">
-        <Cover restaurant={restaurant} className="size-14 shrink-0 rounded-xl" emojiClass="text-2xl" />
+        <Cover of={item} emoji={itemEmoji(section, item)} className="size-14 shrink-0 rounded-xl" emojiClass="text-2xl" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{restaurant.name}</p>
-          <p className="truncate text-sm text-muted">{[restaurant.category, restaurant.area].filter(Boolean).join(' · ')}</p>
+          <p className="truncate font-semibold">{item.name}</p>
+          <p className="truncate text-sm text-muted">{[item.category, item.area].filter(Boolean).join(' · ')}</p>
         </div>
         <Button size="sm" variant="ghost" onClick={() => setPicking(true)}>
           Change
@@ -125,9 +133,9 @@ function EntryForm({
       </section>
 
       <section>
-        <h3 className="mb-2 text-sm font-semibold">Meal</h3>
+        <h3 className="mb-2 text-sm font-semibold">{meta.slotHeading}</h3>
         <div className="flex flex-wrap gap-1.5">
-          {trip.slots.map((s) => (
+          {meta.slots.map((s) => (
             <Chip key={s.id} active={s.id === slot} onClick={() => setSlot(s.id)}>
               {s.emoji} {s.label}
             </Chip>
@@ -199,10 +207,11 @@ function EntryForm({
   )
 }
 
-/** Restaurants to choose from: places both couples want first, then the least-planned. */
-function RestaurantPicker({ onPick }: { onPick: (r: Restaurant) => void }) {
-  const { data: all = [] } = useRestaurants()
-  const counts = usePlanCounts()
+/** Items to choose from: ones both couples want first, then the least-planned. */
+function ItemPicker({ section, onPick }: { section: Section; onPick: (r: Item) => void }) {
+  const meta = sections[section]
+  const { data: all = [] } = useItems(section)
+  const counts = usePlanCounts(section)
   const [query, setQuery] = useState('')
 
   const list = useMemo(() => {
@@ -221,14 +230,18 @@ function RestaurantPicker({ onPick }: { onPick: (r: Restaurant) => void }) {
     <div>
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted" />
-        <input className={cn(inputClass, 'pl-10')} placeholder="Search places" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input className={cn(inputClass, 'pl-10')} placeholder={`Search ${meta.nouns}`} value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
-      {list.length === 0 && <p className="py-8 text-center text-sm text-muted">No places yet — add some in Eats first.</p>}
+      {list.length === 0 && (
+        <p className="py-8 text-center text-sm text-muted">
+          No {meta.nouns} yet — add some in {meta.title} first.
+        </p>
+      )}
       <ul className="space-y-1">
         {list.map((r) => (
           <li key={r.id}>
             <button type="button" onClick={() => onPick(r)} className="flex w-full items-center gap-3 rounded-2xl p-2 text-left active:bg-canvas">
-              <Cover restaurant={r} className="size-12 shrink-0 rounded-xl" emojiClass="text-xl" />
+              <Cover of={r} emoji={itemEmoji(section, r)} className="size-12 shrink-0 rounded-xl" emojiClass="text-xl" />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{r.name}</p>
                 <p className="truncate text-sm text-muted">{[r.category, r.area].filter(Boolean).join(' · ') || '—'}</p>

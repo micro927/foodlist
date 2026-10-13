@@ -1,24 +1,27 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { ArrowUpDown, Plus, UserRound } from "lucide-react";
 import {
-  ArrowUpDown,
-  Check,
-  ChevronDown,
-  LayoutGrid,
-  List,
-  Plus,
-  Search,
-  UserRound,
-  X,
-} from "lucide-react";
-import { Button, Chip, inputClass, Sheet, useSticky } from "@/components/ui";
-import { usePlanCounts, useRestaurants } from "@/lib/data";
+  countOptions,
+  EmptyState,
+  fabClass,
+  FilterChip,
+  GridSkeleton,
+  OptionRow,
+  PageTitle,
+  SearchField,
+  ViewToggle,
+  type Option,
+} from "@/components/browse";
+import { Button, Chip, Sheet, useSticky } from "@/components/ui";
+import { usePlanCounts, useItems } from "@/lib/data";
 import { setMe, useMe } from "@/lib/device";
-import type { Restaurant } from "@/lib/types";
-import { cn, local } from "@/lib/utils";
-import { categoryEmoji, coupleById, trip, type CoupleId } from "@/trip.config";
+import { sections } from "@/lib/sections";
+import type { Item, Section } from "@/lib/types";
+import { local } from "@/lib/utils";
+import { coupleById, trip, type CoupleId } from "@/trip.config";
 import { useOpenSheet } from "../sheets";
-import { RestaurantCard, RestaurantRow } from "./RestaurantCard";
+import { ItemCard, ItemRow } from "./ItemCard";
 
 type Interest = "both" | CoupleId | "none";
 type Filters = {
@@ -28,7 +31,6 @@ type Filters = {
   planned: "planned" | "unplanned" | null;
 };
 type SortKey = "best" | "newest" | "name" | "category";
-type Option = { value: string; label: string; count?: number };
 
 const noFilters: Filters = {
   category: null,
@@ -58,22 +60,24 @@ const plannedOptions: Option[] = [
   { value: "unplanned", label: "🗒️ Not planned yet" },
 ];
 
-const allCouples = (r: Restaurant) =>
+const allCouples = (r: Item) =>
   trip.couples.every((c) => r.interested.includes(c.id));
 
-export function EatsPage() {
-  const { data: restaurants = [], isPending } = useRestaurants();
-  const counts = usePlanCounts();
+/** The Eats or Places tab. */
+export function ItemsPage({ section }: { section: Section }) {
+  const meta = sections[section];
+  const { data: items = [], isPending } = useItems(section);
+  const counts = usePlanCounts(section);
   const openSheet = useOpenSheet();
   const me = useMe();
 
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(noFilters);
   const [sort, setSortState] = useState<SortKey>(
-    () => (local.get("foodlist:sort") as SortKey) || "name"
+    () => (local.get(`${meta.storagePrefix}sort`) as SortKey) || "name"
   );
   const [view, setViewState] = useState<"grid" | "list">(() =>
-    local.get("foodlist:view") === "grid" ? "grid" : "list"
+    local.get(`${meta.storagePrefix}view`) === "grid" ? "grid" : "list"
   );
   const [picker, setPicker] = useState<keyof Filters | "sort" | "me" | null>(
     null
@@ -81,29 +85,29 @@ export function EatsPage() {
 
   const setSort = (s: SortKey) => (
     setSortState(s),
-    local.set("foodlist:sort", s)
+    local.set(`${meta.storagePrefix}sort`, s)
   );
   const setView = (v: "grid" | "list") => (
     setViewState(v),
-    local.set("foodlist:view", v)
+    local.set(`${meta.storagePrefix}view`, v)
   );
 
   const categoryOptions = useMemo(
     () =>
       countOptions(
-        restaurants.map((r) => r.category),
-        (c) => `${categoryEmoji(c)} ${c}`
+        items.map((r) => r.category),
+        (c) => `${meta.emoji(c)} ${c}`
       ),
-    [restaurants]
+    [items, meta]
   );
   const areaOptions = useMemo(
-    () => countOptions(restaurants.map((r) => r.area)),
-    [restaurants]
+    () => countOptions(items.map((r) => r.area)),
+    [items]
   );
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = restaurants.filter((r) => {
+    const list = items.filter((r) => {
       if (
         q &&
         ![r.name, r.category, r.area, r.notes ?? ""].some((v) =>
@@ -120,7 +124,7 @@ export function EatsPage() {
         return false;
       if (filters.interest === "both" && !allCouples(r)) return false;
       if (filters.interest === "none" && r.interested.length > 0) return false;
-      // A single couple means only them — places everyone wants live under "Both want".
+      // A single couple means only them — items everyone wants live under "Both want".
       if (
         filters.interest &&
         filters.interest !== "both" &&
@@ -132,9 +136,9 @@ export function EatsPage() {
       if (filters.planned === "unplanned" && counts.get(r.id)) return false;
       return true;
     });
-    const newest = (a: Restaurant, b: Restaurant) =>
+    const newest = (a: Item, b: Item) =>
       b.created_at.localeCompare(a.created_at);
-    const compare: Record<SortKey, (a: Restaurant, b: Restaurant) => number> = {
+    const compare: Record<SortKey, (a: Item, b: Item) => number> = {
       best: (a, b) => b.interested.length - a.interested.length || newest(a, b),
       newest,
       name: (a, b) => a.name.localeCompare(b.name),
@@ -143,7 +147,7 @@ export function EatsPage() {
         a.name.localeCompare(b.name),
     };
     return list.sort(compare[sort]);
-  }, [restaurants, query, filters, sort, counts]);
+  }, [items, query, filters, sort, counts]);
 
   const activeFilters = Object.values(filters).filter(Boolean).length;
   const label = (options: Option[], value: string | null, fallback: string) =>
@@ -194,23 +198,14 @@ export function EatsPage() {
   }
 
   const meCouple = me ? coupleById(me) : undefined;
+  const addItem = () => openSheet({ kind: "form", section });
 
   return (
     <div className="pb-40">
       <header className="sticky top-0 z-20 border-b border-line/70 bg-canvas/90 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur-xl">
         <div className="mx-auto max-w-5xl px-4">
           <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <p className="text-[11px] font-bold tracking-[0.14em] text-primary uppercase">
-                {trip.name}
-              </p>
-              <h1 className="text-2xl leading-tight font-extrabold">
-                Eats{" "}
-                <span className="text-base font-semibold text-muted">
-                  {restaurants.length}
-                </span>
-              </h1>
-            </div>
+            <PageTitle title={meta.title} count={items.length} />
             <Button
               variant="outline"
               size="icon"
@@ -223,40 +218,14 @@ export function EatsPage() {
                 <UserRound className="size-5" />
               )}
             </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={view === "grid" ? "Show as list" : "Show as grid"}
-              onClick={() => setView(view === "grid" ? "list" : "grid")}
-            >
-              {view === "grid" ? (
-                <List className="size-5" />
-              ) : (
-                <LayoutGrid className="size-5" />
-              )}
-            </Button>
+            <ViewToggle view={view} onChange={setView} />
           </div>
 
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted" />
-            <input
-              type="search"
-              className={cn(inputClass, "h-11 pr-10 pl-10")}
-              placeholder="Search name, area, notes…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {query && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={() => setQuery("")}
-                className="absolute top-1/2 right-3 -translate-y-1/2 text-muted"
-              >
-                <X className="size-4" />
-              </button>
-            )}
-          </div>
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            placeholder="Search name, area, notes…"
+          />
 
           <div className="no-scrollbar -mx-4 mt-2.5 flex gap-1.5 overflow-x-auto px-4 pb-3">
             <Chip onClick={() => setPicker("sort")}>
@@ -301,21 +270,14 @@ export function EatsPage() {
 
       <main className="mx-auto max-w-5xl px-4 pt-4">
         {isPending ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 6 }, (_, i) => (
-              <div
-                key={i}
-                className="aspect-[3/4] animate-pulse rounded-3xl bg-line/60"
-              />
-            ))}
-          </div>
-        ) : restaurants.length === 0 ? (
+          <GridSkeleton />
+        ) : items.length === 0 ? (
           <EmptyState
-            emoji="🍣"
-            title="No places yet"
-            body="Add the first restaurant you're dreaming about."
-            action="Add a place"
-            onAction={() => openSheet({ kind: "form" })}
+            emoji={meta.empty.emoji}
+            title={`No ${meta.nouns} yet`}
+            body={meta.empty.body}
+            action={`Add a ${meta.noun}`}
+            onAction={addItem}
           />
         ) : visible.length === 0 ? (
           <EmptyState
@@ -340,8 +302,9 @@ export function EatsPage() {
                   exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <RestaurantCard
-                    restaurant={r}
+                  <ItemCard
+                    section={section}
+                    item={r}
                     planned={counts.get(r.id) ?? 0}
                   />
                 </motion.div>
@@ -351,9 +314,10 @@ export function EatsPage() {
         ) : (
           <div className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface">
             {visible.map((r) => (
-              <RestaurantRow
+              <ItemRow
                 key={r.id}
-                restaurant={r}
+                section={section}
+                item={r}
                 planned={counts.get(r.id) ?? 0}
               />
             ))}
@@ -364,13 +328,11 @@ export function EatsPage() {
       <motion.div
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="fixed right-4 bottom-[calc(84px+env(safe-area-inset-bottom))] z-20"
+        className={fabClass}
       >
-        <Button
-          className="h-14 px-6 text-base shadow-lg"
-          onClick={() => openSheet({ kind: "form" })}
-        >
-          <Plus className="size-5" strokeWidth={2.5} /> Add place
+        <Button className="h-14 px-6 text-base shadow-lg" onClick={addItem}>
+          <Plus className="size-5" strokeWidth={2.5} /> Add{" "}
+          {meta.noun}
         </Button>
       </motion.div>
 
@@ -410,100 +372,5 @@ export function EatsPage() {
         )}
       </Sheet>
     </div>
-  );
-}
-
-function FilterChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Chip active={active} onClick={onClick}>
-      {label} <ChevronDown className="size-3.5 opacity-70" />
-    </Chip>
-  );
-}
-
-function OptionRow({
-  label,
-  count,
-  selected,
-  onClick,
-}: {
-  label: string;
-  count?: number;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-          "flex h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-[15px] transition",
-          selected
-            ? "bg-primary-soft font-semibold text-primary"
-            : "active:bg-canvas"
-        )}
-      >
-        <span className="flex-1 truncate">{label}</span>
-        {count !== undefined && (
-          <span className="text-sm text-muted">{count}</span>
-        )}
-        {selected && <Check className="size-4" />}
-      </button>
-    </li>
-  );
-}
-
-function EmptyState({
-  emoji,
-  title,
-  body,
-  action,
-  onAction,
-}: {
-  emoji: string;
-  title: string;
-  body: string;
-  action: string;
-  onAction: () => void;
-}) {
-  return (
-    <div className="flex flex-col items-center px-6 py-20 text-center">
-      <div className="aurora mb-4 grid size-20 place-items-center rounded-full text-4xl">
-        {emoji}
-      </div>
-      <h2 className="text-lg font-bold">{title}</h2>
-      <p className="mt-1 text-sm text-muted">{body}</p>
-      <Button variant="soft" className="mt-5" onClick={onAction}>
-        {action}
-      </Button>
-    </div>
-  );
-}
-
-/** Distinct non-empty values (case-insensitive) with how many places use each, most-used first. */
-function countOptions(
-  values: string[],
-  format: (v: string) => string = (v) => v
-): Option[] {
-  const counts = new Map<string, Option>();
-  for (const raw of values) {
-    const v = raw.trim();
-    if (!v) continue;
-    const key = v.toLowerCase();
-    const existing = counts.get(key);
-    if (existing) existing.count!++;
-    else counts.set(key, { value: v, label: format(v), count: 1 });
-  }
-  return [...counts.values()].sort(
-    (a, b) => b.count! - a.count! || a.label.localeCompare(b.label)
   );
 }
