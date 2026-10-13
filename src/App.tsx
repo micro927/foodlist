@@ -113,11 +113,10 @@ function Shell() {
             icon={<MapPin className="size-6" />}
             label="Places"
           />
-          {/* The Plan icon always wears the primary colour — it's the trip planner call to action. */}
           <TabButton
             active={tab === "plan"}
             onClick={() => go("plan")}
-            icon={<CalendarDays className="size-6 text-primary" />}
+            icon={<CalendarDays className="size-6" />}
             label="Plan"
           />
           <TabButton
@@ -159,7 +158,9 @@ function TabButton({
           transition={{ type: "spring", bounce: 0.25, duration: 0.4 }}
         />
       )}
-      <span className="relative">{icon}</span>
+      <span className={cn("relative transition-colors", active && "text-primary")}>
+        {icon}
+      </span>
       <span className="relative">{label}</span>
     </button>
   );

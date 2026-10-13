@@ -16,9 +16,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "apple-touch-icon-180x180.png"],
       manifest: {
-        name: "Tokyo Eats",
-        short_name: "Eats",
-        description: "Our group trip restaurant list and meal plan",
+        name: "Tokyo 2027",
+        short_name: "Tokyo 2027",
+        description: "Our group trip: where to eat, where to go, and the day-by-day plan",
         theme_color: "#ffffff",
         background_color: "#fbfaf8",
         display: "standalone",
