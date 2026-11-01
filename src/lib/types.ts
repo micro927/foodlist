@@ -1,4 +1,4 @@
-import type { CoupleId, GoodForId, SlotId } from '@/trip.config'
+import type { CoupleId, GoodForId, PersonId, SlotId } from '@/trip.config'
 
 /** Eats lists Restaurants, Places lists Places. Both work the same way and both can be planned. */
 export type Section = 'eats' | 'places'
@@ -49,3 +49,45 @@ export type Area = {
 }
 
 export type AreaFields = Pick<Area, 'name' | 'maps_url' | 'good_for' | 'inspo_urls' | 'restaurant_ids' | 'place_ids' | 'notes'>
+
+/** One row of a receipt. Lives inside its Bill, not in a table of its own. */
+export type BillLine = {
+  id: string
+  name_en: string
+  name_ja: string
+  qty: number
+  /** What the whole row costs in yen (Beer ×6 → the price of all six). Negative for a discount. */
+  price: number
+  /** Tax, service charge or discount: spread over people by what they ate instead of being given out. */
+  extra: boolean
+  /** Who ate each Unit, one list per Unit (length = qty). Ignored when `custom` is set. */
+  units: PersonId[][]
+  /** Custom split: each person's yen for this line, adding up to `price`. */
+  custom: Partial<Record<PersonId, number>> | null
+}
+
+export type Bill = {
+  id: string
+  shop: string
+  day: string // YYYY-MM-DD
+  time: string // HH:MM
+  payer: PersonId
+  sharing: PersonId[]
+  lines: BillLine[]
+  /** The total printed on the receipt, to check the lines against. */
+  receipt_total: number | null
+  /** Yen each person had paid back when they were marked paid. A Share is paid only while it still equals this. */
+  paid: Partial<Record<PersonId, number>>
+  photo_paths: string[]
+  created_at: string
+  updated_at: string
+}
+
+export type BillFields = Pick<Bill, 'shop' | 'day' | 'time' | 'payer' | 'sharing' | 'lines' | 'receipt_total' | 'paid' | 'photo_paths'>
+
+/** What a Scan reads off a receipt photo. */
+export type ScanResult = {
+  shop: string
+  lines: Pick<BillLine, 'name_en' | 'name_ja' | 'qty' | 'price' | 'extra'>[]
+  total: number | null
+}

@@ -2,12 +2,13 @@ import { useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CoupleId } from '@/trip.config'
 import { api, type Table } from './api'
-import type { Area, AreaFields, Item, ItemFields, PlanEntryFields, Section } from './types'
+import type { Area, AreaFields, Bill, BillFields, Item, ItemFields, PlanEntryFields, Section } from './types'
 
 const keys = {
   items: (section: Section) => ['items', section] as const,
   plan: (section: Section) => ['plan', section] as const,
   areas: ['areas'] as const,
+  bills: ['bills'] as const,
 }
 
 const keyOf: Record<Table, readonly string[]> = {
@@ -16,6 +17,7 @@ const keyOf: Record<Table, readonly string[]> = {
   places: keys.items('places'),
   place_plan_entries: keys.plan('places'),
   areas: keys.areas,
+  bills: keys.bills,
 }
 
 export function useItems(section: Section) {
@@ -150,5 +152,57 @@ export function useDeleteArea() {
   return useMutation({
     mutationFn: (area: Area) => api.deleteArea(area),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.areas }),
+  })
+}
+
+export function useBills() {
+  return useQuery({ queryKey: keys.bills, queryFn: api.listBills })
+}
+
+export type SaveBillInput = {
+  id: string
+  existing?: Bill
+  fields: Omit<BillFields, 'photo_paths'>
+  /** Saved photos to keep, plus new ones to upload. */
+  photos: { keep: string[]; add: Blob[] }
+}
+
+export function useSaveBill() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, existing, fields, photos }: SaveBillInput) => {
+      const added = await Promise.all(photos.add.map((blob) => api.uploadBillPhoto(id, blob)))
+      const all = { ...fields, photo_paths: [...photos.keep, ...added] }
+      if (existing) await api.updateBill(id, all)
+      else await api.createBill({ ...all, id })
+      await api.removeBillPhotos((existing?.photo_paths ?? []).filter((p) => !photos.keep.includes(p)))
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.bills }),
+  })
+}
+
+export function useDeleteBill() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (bill: Bill) => api.deleteBill(bill),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.bills }),
+  })
+}
+
+/** Writes new `paid` maps (marking Shares paid or unpaid, or settling up), updating the list instantly. */
+export function useSetPaid() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (changes: { bill: Bill; paid: Bill['paid'] }[]) =>
+      Promise.all(changes.map(({ bill, paid }) => api.updateBill(bill.id, { paid }))),
+    onMutate: async (changes) => {
+      await qc.cancelQueries({ queryKey: keys.bills })
+      const previous = qc.getQueryData<Bill[]>(keys.bills)
+      const next = new Map(changes.map((c) => [c.bill.id, c.paid]))
+      qc.setQueryData<Bill[]>(keys.bills, (list) => list?.map((b) => (next.has(b.id) ? { ...b, paid: next.get(b.id)! } : b)))
+      return { previous }
+    },
+    onError: (_err, _vars, ctx) => qc.setQueryData(keys.bills, ctx?.previous),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.bills }),
   })
 }

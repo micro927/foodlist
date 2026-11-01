@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import type {
   Area,
   AreaFields,
+  Bill,
+  BillFields,
   Item,
   ItemFields,
   PlanEntry,
@@ -14,7 +16,8 @@ export type Table =
   | "plan_entries"
   | "places"
   | "place_plan_entries"
-  | "areas";
+  | "areas"
+  | "bills";
 
 /** Anything with a cover photo. */
 export type CoverOwner = Section | "areas";
@@ -49,6 +52,16 @@ export type Backend = {
   createArea(fields: AreaFields): Promise<Area>;
   updateArea(id: string, patch: Partial<AreaFields>): Promise<void>;
   deleteArea(area: Area): Promise<void>;
+
+  /** Newest first. */
+  listBills(): Promise<Bill[]>;
+  /** The id is made on the phone so receipt photos can be uploaded before the Bill is saved. */
+  createBill(fields: BillFields & Pick<Bill, "id">): Promise<void>;
+  updateBill(id: string, patch: Partial<BillFields>): Promise<void>;
+  deleteBill(bill: Bill): Promise<void>;
+  /** Stores a receipt photo and returns its path (shown with coverUrl). */
+  uploadBillPhoto(billId: string, image: Blob): Promise<string>;
+  removeBillPhotos(paths: string[]): Promise<void>;
 
   /** Uploads a new cover (or removes it with null), deleting the previous file. Returns the new path. */
   setCover(
@@ -170,6 +183,39 @@ function supabaseBackend(url: string, key: string): Backend {
       if (area.cover_path) await covers.remove([area.cover_path]);
     },
 
+    async listBills() {
+      return must(
+        await db
+          .from("bills")
+          .select("*")
+          .order("day", { ascending: false })
+          .order("time", { ascending: false })
+      ) as Bill[];
+    },
+    async createBill(fields) {
+      must(await db.from("bills").insert(fields));
+    },
+    async updateBill(id, patch) {
+      must(await db.from("bills").update(patch).eq("id", id));
+    },
+    async deleteBill(bill) {
+      must(await db.from("bills").delete().eq("id", bill.id));
+      if (bill.photo_paths.length) await covers.remove(bill.photo_paths);
+    },
+    async uploadBillPhoto(billId, image) {
+      const path = `bills/${billId}/${Date.now()}.webp`;
+      must(
+        await covers.upload(path, image, {
+          contentType: image.type,
+          cacheControl: "31536000",
+        })
+      );
+      return path;
+    },
+    async removeBillPhotos(paths) {
+      if (paths.length) await covers.remove(paths);
+    },
+
     async setCover(owner, target, image) {
       const { table, prefix } = coverTables[owner];
       let path: string | null = null;
@@ -199,6 +245,7 @@ function supabaseBackend(url: string, key: string): Backend {
         "places",
         "place_plan_entries",
         "areas",
+        "bills",
       ];
       const channel = all
         .reduce(
@@ -224,6 +271,7 @@ function demoBackend(): Backend {
     places: Item[];
     placePlan: PlanEntry[];
     areas: Area[];
+    bills: Bill[];
   };
   const keys = {
     eats: { items: "restaurants", plan: "plan" },
@@ -356,6 +404,30 @@ function demoBackend(): Backend {
       store.areas = store.areas.filter((a) => a.id !== area.id);
       save("areas");
     },
+
+    async listBills() {
+      return [...store.bills].sort(
+        (a, b) => b.day.localeCompare(a.day) || b.time.localeCompare(a.time)
+      );
+    },
+    async createBill(fields) {
+      store.bills.push({ ...fields, created_at: now(), updated_at: now() });
+      save("bills");
+    },
+    async updateBill(id, patch) {
+      store.bills = store.bills.map((b) =>
+        b.id === id ? { ...b, ...patch, updated_at: now() } : b
+      );
+      save("bills");
+    },
+    async deleteBill(bill) {
+      store.bills = store.bills.filter((b) => b.id !== bill.id);
+      save("bills");
+    },
+    async uploadBillPhoto(_billId, image) {
+      return blobToDataUrl(image);
+    },
+    async removeBillPhotos() {},
 
     async setCover(owner, target, image) {
       const path = image ? await blobToDataUrl(image) : null;
@@ -508,5 +580,28 @@ function demoSeed() {
       updated_at: at(5),
     },
   ];
-  return { restaurants, plan, places, placePlan, areas };
+  const unit = (n: number, ...who: Bill["sharing"]) =>
+    Array.from({ length: n }, () => [...who]);
+  const bills: Bill[] = [
+    {
+      id: "b1",
+      shop: "Torikizoku",
+      day: "2026-12-23",
+      time: "20:30",
+      payer: "fair",
+      sharing: ["micro", "bua", "fair", "bee"],
+      lines: [
+        { id: "l1", name_en: "Draft beer", name_ja: "生ビール", qty: 6, price: 3300, extra: false, units: [["micro"], ["micro"], ["fair"], ["fair"], ["bee"], ["bua"]], custom: null },
+        { id: "l2", name_en: "Chicken thigh skewers", name_ja: "もも貴族焼", qty: 4, price: 1480, extra: false, units: unit(4, "micro", "bua", "fair", "bee"), custom: null },
+        { id: "l3", name_en: "Table charge", name_ja: "お通し", qty: 4, price: 1200, extra: false, units: [["micro"], ["bua"], ["fair"], ["bee"]], custom: null },
+        { id: "l4", name_en: "Tax", name_ja: "消費税", qty: 1, price: 598, extra: true, units: [], custom: null },
+      ],
+      receipt_total: 6578,
+      paid: {},
+      photo_paths: [],
+      created_at: at(3),
+      updated_at: at(3),
+    },
+  ];
+  return { restaurants, plan, places, placePlan, areas, bills };
 }

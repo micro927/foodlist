@@ -25,6 +25,17 @@ export const trip = {
     },
   ],
 
+  // Bills are split per person, not per couple. Four clearly different colours, so people never blur together.
+  people: [
+    { id: "micro", name: "Micro", couple: "micro_bua", color: "#7C4DDB", soft: "#F1EBFD" }, // violet
+    { id: "bua", name: "Bua", couple: "micro_bua", color: "#E0408A", soft: "#FDEAF3" }, // pink
+    { id: "fair", name: "Fair", couple: "fair_bee", color: "#1F7FD6", soft: "#E5F1FC" }, // blue
+    { id: "bee", name: "Bee", couple: "fair_bee", color: "#D98C00", soft: "#FDF3DD" }, // amber
+  ],
+
+  // Shown as a rough "≈ ฿" next to yen totals in Bills; null hides it.
+  bahtPerYen: 0.22 as number | null,
+
   // Meal slots for Eats in the plan.
   slots: [
     { id: "breakfast", label: "Breakfast", emoji: "🍳" },
@@ -116,7 +127,12 @@ export type SlotId =
 export type GoodForId = (typeof trip.goodFor)[number]["id"];
 export type Couple = (typeof trip.couples)[number];
 
+export type PersonId = (typeof trip.people)[number]["id"];
+export type Person = (typeof trip.people)[number];
+
 export const coupleIds = trip.couples.map((c) => c.id) as CoupleId[];
+export const personIds = trip.people.map((p) => p.id) as PersonId[];
+export const personById = (id: string) => trip.people.find((p) => p.id === id);
 export const coupleById = (id: string) => trip.couples.find((c) => c.id === id);
 export const slotById = (id: string) =>
   [...trip.slots, ...trip.placeSlots].find((s) => s.id === id);

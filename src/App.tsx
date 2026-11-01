@@ -5,6 +5,7 @@ import {
   Lock,
   Map as MapIcon,
   MapPin,
+  ReceiptText,
   UtensilsCrossed,
   WifiOff,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { useOnline } from "@/lib/device";
 import { cn, local } from "@/lib/utils";
 import { trip } from "@/trip.config";
 import { AreasPage } from "@/features/areas/AreasPage";
+import { BillsPage } from "@/features/bills/BillsPage";
 import { ItemsPage } from "@/features/items/ItemsPage";
 import { PlanPage } from "@/features/plan/PlanPage";
 import { SheetsProvider } from "@/features/sheets";
@@ -53,8 +55,8 @@ export function App() {
   );
 }
 
-type Tab = "eats" | "places" | "plan" | "areas";
-const tabs: Tab[] = ["eats", "places", "plan", "areas"];
+type Tab = "eats" | "places" | "plan" | "areas" | "bills";
+const tabs: Tab[] = ["eats", "places", "plan", "areas", "bills"];
 // Eats lives at the bare path; every other tab has its own hash.
 const readTab = (): Tab =>
   tabs.find((t) => t !== "eats" && location.hash === `#${t}`) ?? "eats";
@@ -95,12 +97,14 @@ function Shell() {
         <ItemsPage key="places" section="places" />
       ) : tab === "plan" ? (
         <PlanPage />
-      ) : (
+      ) : tab === "areas" ? (
         <AreasPage />
+      ) : (
+        <BillsPage />
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="mx-auto grid h-16 max-w-md grid-cols-4">
+        <div className="mx-auto grid h-16 max-w-md grid-cols-5">
           <TabButton
             active={tab === "eats"}
             onClick={() => go("eats")}
@@ -124,6 +128,12 @@ function Shell() {
             onClick={() => go("areas")}
             icon={<MapIcon className="size-6" />}
             label="Areas"
+          />
+          <TabButton
+            active={tab === "bills"}
+            onClick={() => go("bills")}
+            icon={<ReceiptText className="size-6" />}
+            label="Bills"
           />
         </div>
       </nav>
@@ -154,7 +164,7 @@ function TabButton({
       {active && (
         <motion.span
           layoutId="tab-pill"
-          className="absolute top-1.5 h-8 w-16 rounded-full bg-primary-soft"
+          className="absolute top-1.5 h-8 w-14 rounded-full bg-primary-soft"
           transition={{ type: "spring", bounce: 0.25, duration: 0.4 }}
         />
       )}

@@ -7,6 +7,8 @@ import { EntrySheet, type EntryDraft } from './plan/EntrySheet'
 import { AreaDetailSheet } from './areas/AreaDetailSheet'
 import { AreaFormSheet } from './areas/AreaFormSheet'
 import { DeleteAreaSheet } from './areas/DeleteAreaSheet'
+import { BillSheet, DeleteBillSheet } from './bills/BillSheet'
+import { BillFormSheet, type BillStep } from './bills/BillFormSheet'
 
 /** Every bottom sheet in the app. Opening one closes whichever was open. */
 export type SheetRequest =
@@ -17,6 +19,9 @@ export type SheetRequest =
   | { kind: 'area'; id: string }
   | { kind: 'areaForm'; id?: string }
   | { kind: 'areaDelete'; id: string }
+  | { kind: 'bill'; id: string }
+  | { kind: 'billForm'; id?: string; step?: BillStep }
+  | { kind: 'billDelete'; id: string }
 
 type SheetState = SheetRequest & { nonce: number }
 
@@ -39,6 +44,9 @@ export function SheetsProvider({ children }: { children: ReactNode }) {
       <AreaDetailSheet state={of('area')} onClose={close} />
       <AreaFormSheet state={of('areaForm')} onClose={close} />
       <DeleteAreaSheet state={of('areaDelete')} onClose={close} />
+      <BillSheet state={of('bill')} onClose={close} />
+      <BillFormSheet state={of('billForm')} onClose={close} />
+      <DeleteBillSheet state={of('billDelete')} onClose={close} />
     </OpenSheetContext.Provider>
   )
 }
