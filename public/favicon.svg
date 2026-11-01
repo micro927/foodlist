@@ -1,11 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#E0452B"/>
-  <g fill="#fff">
-    <path d="M64 104q192 32 384 0l-8 40q-184 24-368 0z"/>
-    <rect x="108" y="154" width="296" height="26" rx="4"/>
-    <rect x="242" y="176" width="28" height="54"/>
-    <rect x="112" y="226" width="288" height="28" rx="4"/>
-    <rect x="150" y="170" width="40" height="262" rx="4"/>
-    <rect x="322" y="170" width="40" height="262" rx="4"/>
+  <!-- Rounded, for browser tabs and the plain PWA icons. icon-full-bleed.svg is the same art for the maskable and
+       Apple icons, where the phone cuts its own shape: keep the two in step. -->
+  <defs>
+    <clipPath id="shape"><rect width="512" height="512" rx="112"/></clipPath>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="60"/></filter>
+    <!-- frosted glass: bright at the top left, fading to a thin tint -->
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.15"/>
+    </linearGradient>
+    <!-- torii: upswept kasagi over the shimaki, the centre gakuzuka, the nuki running past the pillars, and two
+         pillars splaying outward. The stroke rounds every corner. -->
+    <g id="mark" stroke-width="10" stroke-linejoin="round">
+      <path d="M92 138 Q256 196 420 138 L410 168 Q256 218 102 168 Z"/>
+      <path d="M134 196 L378 196 L378 212 L134 212 Z"/>
+      <path d="M248 216 L264 216 L264 250 L248 250 Z"/>
+      <path d="M128 250 L384 250 L384 268 L128 268 Z"/>
+      <path d="M170 214 L200 214 L197 384 L159 384 Z"/>
+      <path d="M312 214 L342 214 L353 384 L315 384 Z"/>
+    </g>
+  </defs>
+  <!-- colour blobs, blurred into each other: vermilion (the app primary), sakura, amber, violet -->
+  <g clip-path="url(#shape)">
+    <rect width="512" height="512" fill="#E0452B"/>
+    <g filter="url(#blur)">
+      <circle cx="430" cy="70" r="190" fill="#FF4F8B"/>
+      <circle cx="70" cy="460" r="200" fill="#FFB020"/>
+      <circle cx="470" cy="470" r="170" fill="#7B4DFF"/>
+      <circle cx="60" cy="60" r="150" fill="#FF6A3D"/>
+    </g>
+  </g>
+  <!-- glass sun behind the gate -->
+  <circle cx="256" cy="252" r="160" fill="url(#glass)" stroke="url(#rim)" stroke-width="4"/>
+  <!-- torii, inside the maskable safe zone (the middle 80% circle) -->
+  <g transform="translate(256 262) scale(0.94) translate(-256 -265)">
+    <use href="#mark" fill="#5A1020" stroke="#5A1020" opacity="0.22" transform="translate(0 6)"/>
+    <use href="#mark" fill="#FFFFFF" stroke="#FFFFFF"/>
   </g>
 </svg>
