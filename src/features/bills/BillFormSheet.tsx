@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, Camera, Loader2, Plus, ScanText, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, Chip, Field, inputClass, Sheet, useSticky } from '@/components/ui'
+import { Button, Chip, Field, inputClass, Screen, useSticky } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useBills, useSaveBill } from '@/lib/data'
 import { compressImage } from '@/lib/image'
@@ -26,10 +26,19 @@ export function BillFormSheet({ state, onClose }: { state: State | null; onClose
   const last = useSticky(state)
   const existing = useBills().data?.find((b) => b.id === last?.id)
   const ready = last && (!last.id || existing)
+  // A full Screen, not a Sheet: a bill takes a while to fill in and a stray swipe mustn't lose it.
+  const dirty = useRef(false)
+  const onDirty = useCallback((d: boolean) => {
+    dirty.current = d
+  }, [])
+  const close = () => {
+    if (dirty.current && !confirm(last?.id ? 'Discard your changes to this bill?' : 'Discard this bill? Everything you added will be lost.')) return
+    onClose()
+  }
   return (
-    <Sheet open={state !== null} onClose={onClose} title={last?.id ? 'Edit bill' : 'New bill'}>
-      {ready && <BillForm key={last.nonce} existing={existing} initialStep={last.step} onDone={onClose} />}
-    </Sheet>
+    <Screen open={state !== null} onClose={close} title={last?.id ? 'Edit bill' : 'New bill'}>
+      {ready && <BillForm key={last.nonce} existing={existing} initialStep={last.step} onDirty={onDirty} onDone={onClose} />}
+    </Screen>
   )
 }
 
@@ -47,7 +56,17 @@ const newLine = (fields: Partial<BillLine> = {}): BillLine => {
 const evenly = (price: number, people: PersonId[]) =>
   Object.fromEntries(people.map((p, i) => [p, Math.floor(price / people.length) + (i < price % people.length ? 1 : 0)]))
 
-function BillForm({ existing, initialStep, onDone }: { existing?: Bill; initialStep?: BillStep; onDone: () => void }) {
+function BillForm({
+  existing,
+  initialStep,
+  onDirty,
+  onDone,
+}: {
+  existing?: Bill
+  initialStep?: BillStep
+  onDirty: (dirty: boolean) => void
+  onDone: () => void
+}) {
   const save = useSaveBill()
   const [id] = useState(() => existing?.id ?? crypto.randomUUID())
   const [step, setStep] = useState<BillStep>(initialStep ?? 'details')
@@ -63,6 +82,11 @@ function BillForm({ existing, initialStep, onDone }: { existing?: Bill; initialS
   const [processing, setProcessing] = useState(false)
   const [scanning, setScanning] = useState(false)
   const top = useRef<HTMLDivElement>(null)
+
+  const snapshot = JSON.stringify({ shop, day, time, payer, sharing, lines, receiptTotal, keep, added: added.length })
+  const [initialSnapshot] = useState(snapshot)
+  const dirty = snapshot !== initialSnapshot
+  useEffect(() => onDirty(dirty), [dirty, onDirty])
 
   const draftBill = { lines, sharing, payer }
   const draft = isDraft(draftBill)

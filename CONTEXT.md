@@ -108,7 +108,7 @@ What one Person owes the Payer for one Bill: their Units plus their part of the 
 _Avoid_: portion, cut, split
 
 **Scan**:
-Reading a receipt photo into Items, translated roughly from Japanese to English.
+Reading a receipt photo into Items, translated roughly from Japanese to English. A service charge on the receipt is folded into the Items' prices rather than kept as an Extra.
 _Avoid_: OCR (as the user-facing word), import
 
 **Balance**:

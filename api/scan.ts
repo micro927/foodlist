@@ -17,6 +17,7 @@ Return every purchased row as a line:
 - qty: the quantity (1 when none is printed).
 - price: what the whole row costs in yen, as an integer (quantity × unit price). Negative for a discount or coupon.
 - extra: true for rows that are not something eaten or bought — tax added on top (外税, 消費税), service charge (サービス料), and discounts/coupons. False for everything else. A table charge (お通し, チャージ) is NOT extra: it's a normal line, one per person.
+- service: true only for a service charge row (サービス料, サ料); those are also extra.
 
 Leave out rows that aren't charges: subtotal (小計), total (合計), tax already included in prices (内税, 内消費税, (内)… 対象), payment, cash received (お預り), change (お釣り), points.
 The lines' prices must add up to the amount actually paid.
@@ -37,19 +38,21 @@ const schema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name_ja", "name_en", "qty", "price", "extra"],
+        required: ["name_ja", "name_en", "qty", "price", "extra", "service"],
         properties: {
           name_ja: { type: "string" },
           name_en: { type: "string" },
           qty: { type: "integer" },
           price: { type: "integer" },
           extra: { type: "boolean" },
+          service: { type: "boolean" },
         },
       },
     },
   },
 };
 
+type Line = { name_ja: string; name_en: string; qty: number; price: number; extra: boolean; service?: boolean };
 type Photo = { data: string; media_type: "image/webp" | "image/jpeg" | "image/png" };
 
 export async function POST(request: Request) {
@@ -93,8 +96,29 @@ export async function POST(request: Request) {
   if (response.stop_reason === "refusal") return fail(422, "Couldn't read this receipt — add items by hand");
   const text = response.content.find((b) => b.type === "text")?.text;
   if (!text || response.stop_reason === "max_tokens") return fail(502, "Couldn't read this receipt — try a clearer photo");
-  const result = JSON.parse(text) as { shop: string; total: number; lines: unknown[] };
-  return Response.json({ ...result, total: result.total || null });
+  const result = JSON.parse(text) as { shop: string; total: number; lines: Line[] };
+  return Response.json({ ...result, lines: foldServiceCharge(result.lines), total: result.total || null });
+}
+
+/**
+ * Spreads service charge rows into the eaten Items' prices, in proportion to each price, so an Item shows
+ * what it really cost. Rounding yen go to the largest remainders, so the Bill's total doesn't change.
+ * With nothing eaten to fold into, the service charge stays an Extra.
+ */
+function foldServiceCharge(lines: Line[]): Omit<Line, "service">[] {
+  const strip = ({ service, ...l }: Line) => ({ ...l, extra: l.extra || !!service });
+  const service = lines.filter((l) => l.service).reduce((s, l) => s + l.price, 0);
+  const eaten = lines.filter((l) => !l.extra && !l.service);
+  const base = eaten.reduce((s, l) => s + l.price, 0);
+  if (!service || base <= 0) return lines.map(strip);
+
+  const exact = eaten.map((l) => (service * l.price) / base);
+  const added = new Map(eaten.map((l, i) => [l, Math.floor(exact[i])]));
+  let leftover = service - [...added.values()].reduce((s, v) => s + v, 0);
+  const byRemainder = eaten.map((l, i) => [l, exact[i] - Math.floor(exact[i])] as const).sort((a, b) => b[1] - a[1]);
+  for (const [l] of byRemainder) if (leftover-- > 0) added.set(l, added.get(l)! + 1);
+
+  return lines.filter((l) => !l.service).map((l) => strip({ ...l, price: l.price + (added.get(l) ?? 0) }));
 }
 
 function fail(status: number, error: string) {

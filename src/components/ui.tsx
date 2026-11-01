@@ -1,4 +1,7 @@
 import { useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'motion/react'
+import { X } from 'lucide-react'
 import { Drawer } from 'vaul'
 import { useBackHandler } from '@/lib/back'
 import { cn } from '@/lib/utils'
@@ -97,5 +100,35 @@ export function Sheet({
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>
+  )
+}
+
+/** A full-screen page for long forms. Unlike a Sheet it can't be swiped or tapped away: only its close button and phone back call `onClose`. */
+export function Screen({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+  useBackHandler(open, onClose)
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          className="fixed inset-0 z-50 flex flex-col bg-surface"
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ type: 'tween', duration: 0.25, ease: 'easeOut' }}
+        >
+          <div className="mx-auto flex w-full max-w-lg shrink-0 items-center gap-1 px-2 pt-[max(8px,env(safe-area-inset-top))] pb-2">
+            <button type="button" aria-label="Close" onClick={onClose} className="grid size-11 place-items-center rounded-full text-muted active:bg-black/5">
+              <X className="size-5" />
+            </button>
+            <h2 className="text-lg font-bold">{title}</h2>
+          </div>
+          <div className="mx-auto w-full max-w-lg flex-1 overflow-y-auto overscroll-contain px-5 pb-5">{children}</div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   )
 }
