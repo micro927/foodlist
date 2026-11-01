@@ -1,0 +1,4 @@
+# Each commit is +0.001 on the version in the last commit (not on the file), so an aborted commit doesn't skip a number.
+prev=$(git show HEAD:appversion 2>/dev/null || echo 0.999)
+awk -v v="$prev" 'BEGIN { printf "%.3f\n", v + 0.001 }' > appversion
+git add appversion

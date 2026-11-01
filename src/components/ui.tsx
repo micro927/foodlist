@@ -132,3 +132,61 @@ export function Screen({ open, onClose, title, children }: { open: boolean; onCl
     document.body,
   )
 }
+
+/** An in-app "are you sure?" above everything else (never the browser's confirm). Back or tapping outside cancels. */
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel = 'Cancel',
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean
+  title: string
+  message?: ReactNode
+  confirmLabel: string
+  cancelLabel?: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useBackHandler(open, onCancel)
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onCancel}
+        >
+          <motion.div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label={title}
+            className="w-full max-w-sm rounded-[28px] bg-surface p-5 shadow-xl"
+            initial={{ scale: 0.94, y: 8 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.94, y: 8 }}
+            transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold">{title}</h2>
+            {message && <p className="mt-1 text-[15px] text-muted">{message}</p>}
+            <div className="mt-5 flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={onCancel}>
+                {cancelLabel}
+              </Button>
+              <Button className="flex-1 bg-red-600 shadow-red-600/30" onClick={onConfirm}>
+                {confirmLabel}
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  )
+}

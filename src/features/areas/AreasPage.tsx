@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpDown, MapPin, Plus } from "lucide-react";
+import { ArrowUpDown, MapPin } from "lucide-react";
 import {
   EmptyState,
-  fabClass,
+  Fab,
   GridSkeleton,
   OptionRow,
   PageTitle,
@@ -12,7 +12,7 @@ import {
   type Option,
 } from "@/components/browse";
 import { Cover } from "@/components/Cover";
-import { Button, Chip, Sheet } from "@/components/ui";
+import { Chip, Sheet } from "@/components/ui";
 import { useAreas } from "@/lib/data";
 import type { Area } from "@/lib/types";
 import { local } from "@/lib/utils";
@@ -158,15 +158,7 @@ export function AreasPage() {
         )}
       </main>
 
-      <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className={fabClass}
-      >
-        <Button className="h-14 px-6 text-base shadow-lg" onClick={addArea}>
-          <Plus className="size-5" strokeWidth={2.5} /> Add area
-        </Button>
-      </motion.div>
+      <Fab label="Add area" onClick={addArea} />
 
       <Sheet open={sorting} onClose={() => setSorting(false)} title="Sort by">
         <ul className="space-y-1">

@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpDown, Plus, UserRound } from "lucide-react";
+import { ArrowUpDown, UserRound } from "lucide-react";
 import {
   countOptions,
   EmptyState,
-  fabClass,
+  Fab,
   FilterChip,
   GridSkeleton,
   OptionRow,
@@ -22,6 +22,8 @@ import { local } from "@/lib/utils";
 import { coupleById, trip, type CoupleId } from "@/trip.config";
 import { useOpenSheet } from "../sheets";
 import { ItemCard, ItemRow } from "./ItemCard";
+// Bumped by the pre-commit hook: +0.001 per commit.
+import appVersion from "../../../appversion?raw";
 
 type Interest = "both" | CoupleId | "none";
 type Filters = {
@@ -323,18 +325,15 @@ export function ItemsPage({ section }: { section: Section }) {
             ))}
           </div>
         )}
+
+        {section === "eats" && (
+          <p className="mt-10 text-center text-[11px] font-semibold text-muted">
+            v{appVersion.trim()}
+          </p>
+        )}
       </main>
 
-      <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className={fabClass}
-      >
-        <Button className="h-14 px-6 text-base shadow-lg" onClick={addItem}>
-          <Plus className="size-5" strokeWidth={2.5} /> Add{" "}
-          {meta.noun}
-        </Button>
-      </motion.div>
+      <Fab label={`Add ${meta.noun}`} onClick={addItem} />
 
       <Sheet
         open={picker !== null}

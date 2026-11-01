@@ -1,9 +1,10 @@
-import { Check, ChevronDown, LayoutGrid, List, Search, X } from 'lucide-react'
+import { motion } from 'motion/react'
+import { Check, ChevronDown, LayoutGrid, List, Plus, Search, X } from 'lucide-react'
 import { Button, Chip, inputClass } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { trip } from '@/trip.config'
 
-// Building blocks shared by the Eats, Places and Areas pages.
+// Building blocks shared by the Eats, Places, Areas and Bills pages.
 
 export type Option = { value: string; label: string; count?: number }
 
@@ -132,5 +133,17 @@ export function countOptions(values: string[], format: (v: string) => string = (
   return [...counts.values()].sort((a, b) => b.count! - a.count! || a.label.localeCompare(b.label))
 }
 
-/** The floating "+ Add …" button above the tab bar. */
-export const fabClass = 'fixed right-4 bottom-[calc(84px+env(safe-area-inset-bottom))] z-20'
+/** The floating "+ Add …" button above the tab bar; slides up on mount. */
+export function Fab({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <motion.div
+      initial={{ y: 80, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      className="fixed right-4 bottom-[calc(84px+env(safe-area-inset-bottom))] z-20"
+    >
+      <Button className="h-14 px-6 text-base shadow-lg" onClick={onClick}>
+        <Plus className="size-5" strokeWidth={2.5} /> {label}
+      </Button>
+    </motion.div>
+  )
+}

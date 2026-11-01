@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
-import { ArrowRight, Check, Plus } from 'lucide-react'
+import { ArrowRight, Check } from 'lucide-react'
 import { toast } from 'sonner'
-import { EmptyState, fabClass, GridSkeleton, PageTitle } from '@/components/browse'
+import { EmptyState, Fab, GridSkeleton, PageTitle } from '@/components/browse'
 import { Button } from '@/components/ui'
 import { useBills, useSetPaid } from '@/lib/data'
 import type { Bill } from '@/lib/types'
@@ -53,9 +53,7 @@ export function BillsPage() {
         )}
       </main>
 
-      <Button className={cn(fabClass, 'shadow-lg')} onClick={addBill}>
-        <Plus className="size-5" /> New bill
-      </Button>
+      <Fab label="New bill" onClick={addBill} />
     </div>
   )
 }

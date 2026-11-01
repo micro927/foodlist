@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, Camera, Loader2, Plus, ScanText, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { CalendarDays, Camera, Check, Loader2, Plus, ScanText, SlidersHorizontal, Split, Trash2, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, Chip, Field, inputClass, Screen, useSticky } from '@/components/ui'
+import { Button, Chip, ConfirmDialog, Field, inputClass, Screen, useSticky } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useBills, useSaveBill } from '@/lib/data'
 import { compressImage } from '@/lib/image'
@@ -31,14 +31,26 @@ export function BillFormSheet({ state, onClose }: { state: State | null; onClose
   const onDirty = useCallback((d: boolean) => {
     dirty.current = d
   }, [])
-  const close = () => {
-    if (dirty.current && !confirm(last?.id ? 'Discard your changes to this bill?' : 'Discard this bill? Everything you added will be lost.')) return
-    onClose()
-  }
+  const [asking, setAsking] = useState(false)
+  const close = () => (dirty.current ? setAsking(true) : onClose())
   return (
-    <Screen open={state !== null} onClose={close} title={last?.id ? 'Edit bill' : 'New bill'}>
-      {ready && <BillForm key={last.nonce} existing={existing} initialStep={last.step} onDirty={onDirty} onDone={onClose} />}
-    </Screen>
+    <>
+      <Screen open={state !== null} onClose={close} title={last?.id ? 'Edit bill' : 'New bill'}>
+        {ready && <BillForm key={last.nonce} existing={existing} initialStep={last.step} onDirty={onDirty} onDone={onClose} />}
+      </Screen>
+      <ConfirmDialog
+        open={asking}
+        title={last?.id ? 'Discard your changes?' : 'Discard this bill?'}
+        message={last?.id ? "Your edits to this bill won't be saved." : 'Everything you added will be lost.'}
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onCancel={() => setAsking(false)}
+        onConfirm={() => {
+          setAsking(false)
+          onClose()
+        }}
+      />
+    </>
   )
 }
 
@@ -255,14 +267,19 @@ function BillForm({
 
       {step === 'split' && (
         <div className="space-y-3">
-          {lines.filter((l) => !l.extra).length === 0 && <p className="py-6 text-center text-sm text-muted">Add some items first.</p>}
+          {lines.some((l) => !l.extra) ? (
+            <p className="px-1 text-sm text-muted">Tap who had each one. Tap more than one person to share it.</p>
+          ) : (
+            <p className="py-6 text-center text-sm text-muted">Add some items first.</p>
+          )}
           {lines
             .filter((l) => !l.extra)
             .map((l) => (
               <SplitLine key={l.id} line={l} sharing={sharing} onChange={(patch) => updateLine(l.id, patch)} />
             ))}
           {lines.some((l) => l.extra) && (
-            <div className="rounded-2xl bg-canvas p-3 text-sm">
+            <div className="rounded-2xl bg-canvas p-3.5 text-sm">
+              <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Added on top</p>
               {lines
                 .filter((l) => l.extra)
                 .map((l) => (
@@ -496,45 +513,79 @@ function SplitLine({ line, sharing, onChange }: { line: BillLine; sharing: Perso
   const problem = lineProblem(line)
   const eaters = line.custom ? (Object.keys(line.custom) as PersonId[]) : []
   const customLeft = line.custom ? line.price - Object.values(line.custom).reduce<number>((s, v) => s + (v ?? 0), 0) : 0
+  const notGiven = line.units.filter((u) => u.length === 0).length
 
-  const toggleUnit = (i: number, p: PersonId) =>
-    onChange({ units: line.units.map((u, j) => (j !== i ? u : u.includes(p) ? u.filter((x) => x !== p) : personIds.filter((x) => x === p || u.includes(x)))) })
+  // When every Unit went to the same People, one row stands for all of them (Skewers ×4, everyone).
+  const [perUnit, setPerUnit] = useState(false)
+  const first = line.units[0] ?? []
+  const allSame = first.length > 0 && line.units.every((u) => u.length === first.length && u.every((p) => first.includes(p)))
+  const together = line.qty > 1 && allSame && !perUnit
+
+  const withToggled = (people: PersonId[], p: PersonId) =>
+    people.includes(p) ? people.filter((x) => x !== p) : personIds.filter((x) => x === p || people.includes(x))
+  const toggleUnit = (i: number, p: PersonId) => onChange({ units: line.units.map((u, j) => (j === i ? withToggled(u, p) : u)) })
+  const toggleAll = (p: PersonId) => onChange({ units: line.units.map(() => withToggled(first, p)) })
+  const everyone = () => {
+    setPerUnit(false)
+    onChange({ units: line.units.map(() => [...sharing]) })
+  }
 
   const startCustom = () => {
     const ate = personIds.filter((p) => line.units.some((u) => u.includes(p)))
     onChange({ custom: evenly(line.price, ate.length ? ate : sharing) })
   }
   // Picking who ate re-spreads the price evenly; amounts can then be typed per person.
-  const toggleEater = (p: PersonId) => {
-    const next = eaters.includes(p) ? eaters.filter((x) => x !== p) : personIds.filter((x) => x === p || eaters.includes(x))
-    onChange({ custom: evenly(line.price, next) })
-  }
+  const toggleEater = (p: PersonId) => onChange({ custom: evenly(line.price, withToggled(eaters, p)) })
+
+  const status = !problem
+    ? null
+    : line.custom
+      ? customLeft > 0
+        ? `${yen(customLeft)} left to give out`
+        : `${yen(-customLeft)} too much`
+      : line.qty === 1
+        ? 'Who had it?'
+        : notGiven === line.qty
+          ? 'Nobody picked yet'
+          : `${notGiven} of ${line.qty} not given out`
+
+  // Same columns on every row, so each person's chips line up down the card.
+  const grid = (label: boolean) => ({ gridTemplateColumns: `${label ? '1.5rem ' : ''}repeat(${sharing.length}, minmax(0, 1fr))` })
+  const chip = 'w-full min-w-0 px-1 border-transparent bg-canvas'
 
   return (
-    <div className={cn('rounded-2xl border p-3', problem ? 'border-amber-300' : 'border-line')}>
-      <div className="mb-2 flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="leading-snug font-semibold break-words">
-            {line.name_en || line.name_ja || 'Item'}
-            {line.qty > 1 && <span className="font-normal text-muted"> ×{line.qty}</span>}
-          </p>
-          <Money amount={line.price} className="text-sm text-muted" />
-        </div>
-        {!line.custom && (
-          <Button size="sm" variant="ghost" onClick={() => onChange({ units: line.units.map(() => [...sharing]) })}>
-            Everyone
-          </Button>
+    <div className={cn('rounded-2xl border bg-surface p-3.5', problem ? 'border-amber-300' : 'border-line')}>
+      <div className="flex items-baseline gap-3">
+        <p className="min-w-0 flex-1 leading-snug font-semibold break-words">
+          {line.name_en || line.name_ja || 'Item'}
+          {line.qty > 1 && <span className="font-normal text-muted"> ×{line.qty}</span>}
+        </p>
+        <Money amount={line.price} className="shrink-0 font-semibold" />
+      </div>
+
+      <div className="mt-2 mb-3 flex flex-wrap items-center gap-1.5">
+        {status ? (
+          <span className="mr-auto text-xs font-semibold text-amber-700">{status}</span>
+        ) : (
+          <span className="mr-auto inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+            <Check className="size-3.5" /> Done
+          </span>
         )}
-        <Button size="sm" variant={line.custom ? 'soft' : 'ghost'} onClick={() => (line.custom ? onChange({ custom: null }) : startCustom())}>
-          Custom
-        </Button>
+        {!line.custom && (
+          <SplitAction onClick={everyone}>
+            <Users className="size-3.5" /> Everyone
+          </SplitAction>
+        )}
+        <SplitAction active={!!line.custom} onClick={() => (line.custom ? onChange({ custom: null }) : startCustom())}>
+          <SlidersHorizontal className="size-3.5" /> Amounts
+        </SplitAction>
       </div>
 
       {line.custom ? (
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap gap-1.5">
+        <div className="space-y-2">
+          <div className="grid gap-1.5" style={grid(false)}>
             {sharing.map((p) => (
-              <PersonChip key={p} id={p} compact active={eaters.includes(p)} onClick={() => toggleEater(p)} />
+              <PersonChip key={p} id={p} compact active={eaters.includes(p)} className={chip} onClick={() => toggleEater(p)} />
             ))}
           </div>
           {eaters.map((p) => (
@@ -552,25 +603,48 @@ function SplitLine({ line, sharing, onChange }: { line: BillLine; sharing: Perso
               </div>
             </div>
           ))}
-          {customLeft !== 0 && (
-            <p className="text-xs text-amber-700">{customLeft > 0 ? `${yen(customLeft)} left to give out` : `${yen(-customLeft)} too much`}</p>
-          )}
+        </div>
+      ) : together ? (
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <p className="text-xs text-muted">All {line.qty}, shared by</p>
+            <button type="button" onClick={() => setPerUnit(true)} className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+              <Split className="size-3.5" /> One by one
+            </button>
+          </div>
+          <div className="grid gap-1.5" style={grid(false)}>
+            {sharing.map((p) => (
+              <PersonChip key={p} id={p} compact active={first.includes(p)} className={chip} onClick={() => toggleAll(p)} />
+            ))}
+          </div>
         </div>
       ) : (
         <div className="space-y-1.5">
           {line.units.map((u, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              {line.qty > 1 && <span className="w-5 shrink-0 text-xs font-semibold text-muted">{i + 1}</span>}
-              <div className="flex flex-wrap gap-1.5">
-                {sharing.map((p) => (
-                  <PersonChip key={p} id={p} compact active={u.includes(p)} onClick={() => toggleUnit(i, p)} />
-                ))}
-              </div>
+            <div key={i} className="grid items-center gap-1.5" style={grid(line.qty > 1)}>
+              {line.qty > 1 && <span className="text-center text-xs font-semibold text-muted tabular-nums">{i + 1}</span>}
+              {sharing.map((p) => (
+                <PersonChip key={p} id={p} compact active={u.includes(p)} className={chip} onClick={() => toggleUnit(i, p)} />
+              ))}
             </div>
           ))}
         </div>
       )}
     </div>
+  )
+}
+
+function SplitAction({ active, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        'inline-flex h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-semibold transition active:scale-95',
+        active ? 'border-primary bg-primary-soft text-primary' : 'border-line text-ink active:bg-canvas',
+        className,
+      )}
+      {...props}
+    />
   )
 }
 
