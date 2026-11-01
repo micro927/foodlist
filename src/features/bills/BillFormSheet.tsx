@@ -190,7 +190,8 @@ function BillForm({
   const index = steps.findIndex((s) => s.id === step)
 
   return (
-    <div ref={top} className="scroll-mt-20">
+    // Fills the Screen so the footer sits at the bottom even when a step is short.
+    <div ref={top} className="flex min-h-full scroll-mt-20 flex-col">
       <div className="mb-4 grid grid-cols-3 gap-1.5">
         {steps.map((s, i) => (
           <button
@@ -294,7 +295,8 @@ function BillForm({
         </div>
       )}
 
-      <div className="sticky -bottom-5 -mx-5 mt-5 border-t border-line bg-surface px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+      <div className="flex-1" />
+      <div className="sticky -bottom-5 -mx-5 mt-5 -mb-5 border-t border-line bg-surface px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
         {unpaidAgain.length > 0 && (
           <p className="mb-2 text-xs text-amber-700">
             {unpaidAgain.map((p) => personById(p)?.name).join(', ')} had paid back — {unpaidAgain.length === 1 ? 'their share changes and goes' : 'their shares change and go'} back to unpaid.
@@ -308,7 +310,7 @@ function BillForm({
           )}
           {step !== 'split' && (
             <Button variant="outline" disabled={save.isPending || processing} onClick={submit}>
-              Save
+              {draft ? 'Save draft' : 'Save'}
             </Button>
           )}
           <Button className="flex-1" disabled={save.isPending || processing || scanning} onClick={step === 'split' ? submit : () => goTo(steps[index + 1].id)}>
