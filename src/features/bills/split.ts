@@ -1,11 +1,14 @@
 import type { Bill, BillLine } from '@/lib/types'
-import { personIds, trip, type PersonId } from '@/trip.config'
+import { personIds, type PersonId } from '@/trip.config'
 
 // Everything money-related in Bills is worked out here from the saved Bill, never stored.
 
 export const lineSum = (lines: BillLine[]) => lines.reduce((sum, l) => sum + l.price, 0)
 
 const customSum = (line: BillLine) => Object.values(line.custom ?? {}).reduce<number>((s, v) => s + (v ?? 0), 0)
+
+/** Yen of a Line's typed Amounts still to give out; negative when they add up to more than its price. */
+export const customLeft = (line: BillLine) => (line.custom && !line.extra ? line.price - customSum(line) : 0)
 
 /** Why a Line can't be split yet, or null when it's fine. */
 export function lineProblem(line: BillLine): string | null {
@@ -114,7 +117,3 @@ export function paidSharesChanged(before: Bill, after: Pick<Bill, 'lines' | 'sha
 }
 
 export const yen = (amount: number) => `¥${amount.toLocaleString('en-US')}`
-
-/** "≈ ฿1,234" using the rate in trip.config, or '' when there is none. */
-export const baht = (amount: number) =>
-  trip.bahtPerYen ? `≈ ฿${Math.round(amount * trip.bahtPerYen).toLocaleString('en-US')}` : ''

@@ -50,7 +50,7 @@ function BillDetail({ bill }: { bill: Bill }) {
             <PersonDot id={bill.payer} className="size-5 text-[10px]" /> {personById(bill.payer)?.name} paid
           </p>
         </div>
-        <Money amount={total} withBaht className="text-right text-2xl font-extrabold" />
+        <Money amount={total} className="text-right text-2xl font-extrabold" />
       </div>
 
       {draft && (
@@ -71,8 +71,8 @@ function BillDetail({ bill }: { bill: Bill }) {
               return (
                 <li key={person} className="flex items-center gap-2.5 rounded-2xl border border-line p-2 pl-3">
                   <PersonDot id={person} />
-                  <span className="flex-1 font-semibold">{personById(person)?.name}</span>
-                  <Money amount={amount} className="font-bold" />
+                  <span className="flex-1 font-medium">{personById(person)?.name}</span>
+                  <Money amount={amount} className="font-semibold" />
                   {share ? (
                     <Button
                       size="sm"
@@ -106,7 +106,7 @@ function BillDetail({ bill }: { bill: Bill }) {
             return (
               <li key={l.id} className="flex items-center gap-3 px-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm leading-snug font-semibold break-words">
+                  <p className="text-sm leading-snug font-medium break-words">
                     {l.name_en || l.name_ja}
                     {l.qty > 1 && <span className="font-normal text-muted"> ×{l.qty}</span>}
                   </p>

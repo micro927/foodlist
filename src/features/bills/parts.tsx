@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 import { personById, trip, type PersonId } from '@/trip.config'
-import { baht, yen } from './split'
+import { yen } from './split'
 
 /** A person's initial in their colour. */
 export function PersonDot({ id, className }: { id: PersonId; className?: string }) {
@@ -44,13 +44,8 @@ export function PersonChip({
   )
 }
 
-export function Money({ amount, className, withBaht }: { amount: number; className?: string; withBaht?: boolean }) {
-  return (
-    <span className={cn('tabular-nums', className)}>
-      {yen(amount)}
-      {withBaht && baht(amount) && <span className="ml-1 text-xs font-medium text-muted">{baht(amount)}</span>}
-    </span>
-  )
+export function Money({ amount, className }: { amount: number; className?: string }) {
+  return <span className={cn('tabular-nums', className)}>{yen(amount)}</span>
 }
 
 /** "Wed 23 Dec · Day 1" during the trip, otherwise just the date. */

@@ -11,6 +11,15 @@
   --color-line: #ebe7e2;
   --color-canvas: #faf9f7;
   --color-surface: #ffffff;
+
+  /* The amount keypad rising into place. */
+  --animate-keypad-in: keypad-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  @keyframes keypad-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
 }
 
 html {

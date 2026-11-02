@@ -33,9 +33,6 @@ export const trip = {
     { id: "bee", name: "Bee", couple: "fair_bee", color: "#D98C00", soft: "#FDF3DD" }, // amber
   ],
 
-  // Shown as a rough "≈ ฿" next to yen totals in Bills; null hides it.
-  bahtPerYen: 0.22 as number | null,
-
   // Meal slots for Eats in the plan.
   slots: [
     { id: "breakfast", label: "Breakfast", emoji: "🍳" },

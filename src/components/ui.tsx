@@ -1,7 +1,7 @@
-import { useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { X } from 'lucide-react'
+import { ChevronDown, Clock, X } from 'lucide-react'
 import { Drawer } from 'vaul'
 import { useBackHandler } from '@/lib/back'
 import { cn } from '@/lib/utils'
@@ -58,6 +58,106 @@ export function Chip({ active, className, ...props }: ButtonHTMLAttributes<HTMLB
       )}
       {...props}
     />
+  )
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+const hours = Array.from({ length: 24 }, (_, h) => pad(h))
+const minutes = Array.from({ length: 60 }, (_, m) => pad(m))
+const ROW = 40
+
+/** One snapping column of a TimePicker. The middle row is the chosen value. */
+function Wheel({ items, value, onChange, label }: { items: string[]; value: string; onChange: (v: string) => void; label: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const settle = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const [live, setLive] = useState(value)
+  useEffect(() => {
+    const el = ref.current
+    if (el) el.scrollTop = items.indexOf(value) * ROW
+    setLive(value)
+  }, [items, value])
+
+  const onScroll = () => {
+    const el = ref.current
+    if (!el) return
+    const v = items[Math.min(items.length - 1, Math.max(0, Math.round(el.scrollTop / ROW)))]
+    setLive(v)
+    // Only commit once the scroll (and its momentum) has stopped.
+    clearTimeout(settle.current)
+    settle.current = setTimeout(() => v !== value && onChange(v), 120)
+  }
+
+  return (
+    <div
+      ref={ref}
+      role="listbox"
+      aria-label={label}
+      onScroll={onScroll}
+      className="no-scrollbar relative h-[200px] w-16 snap-y snap-mandatory overflow-y-auto overscroll-contain py-[80px] [mask-image:linear-gradient(transparent,black_35%,black_65%,transparent)]"
+    >
+      {items.map((v, i) => (
+        <button
+          key={v}
+          type="button"
+          role="option"
+          aria-selected={v === live}
+          onClick={() => ref.current?.scrollTo({ top: i * ROW, behavior: 'smooth' })}
+          className={cn('block h-10 w-full snap-center text-center text-xl tabular-nums transition-colors', v === live ? 'font-bold text-ink' : 'text-muted')}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** "HH:mm" picked on hour and minute scroll wheels, instead of the browser's own time input. `onClear` makes it optional. */
+export function TimePicker({ value, onChange, onClear }: { value: string; onChange: (time: string) => void; onClear?: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [h, m] = (value || '12:00').split(':')
+  const toggle = () => {
+    if (!open && !value) onChange('12:00')
+    setOpen((o) => !o)
+  }
+
+  return (
+    <div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={toggle}
+          className={cn(inputClass, 'flex flex-1 items-center gap-2 text-left', open && 'border-primary ring-4 ring-primary/10')}
+        >
+          <Clock className="size-5 text-muted" />
+          <span className={cn('flex-1 tabular-nums', !value && 'text-muted/60')}>{value || 'Any time'}</span>
+          <ChevronDown className={cn('size-5 text-muted transition', open && 'rotate-180')} />
+        </button>
+        {onClear && value && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-12"
+            aria-label="Clear time"
+            onClick={() => {
+              onClear()
+              setOpen(false)
+            }}
+          >
+            <X className="size-5" />
+          </Button>
+        )}
+      </div>
+      {open && (
+        <div className="relative mt-2 flex items-center justify-center gap-1 rounded-2xl border border-line">
+          {/* The band behind the middle row marks what's chosen. */}
+          <div className="pointer-events-none absolute inset-x-3 top-1/2 h-10 -translate-y-1/2 rounded-xl bg-primary-soft" />
+          <Wheel label="Hour" items={hours} value={h} onChange={(hh) => onChange(`${hh}:${m}`)} />
+          <span className="relative text-xl font-bold">:</span>
+          <Wheel label="Minute" items={minutes} value={m} onChange={(mm) => onChange(`${h}:${mm}`)} />
+        </div>
+      )}
+    </div>
   )
 }
 

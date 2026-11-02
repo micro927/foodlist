@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { CalendarDays, Camera, Check, Loader2, Plus, ScanText, SlidersHorizontal, Split, Trash2, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, Chip, ConfirmDialog, Field, inputClass, Screen, useSticky } from '@/components/ui'
+import { Button, ConfirmDialog, Field, inputClass, Screen, TimePicker, useSticky } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useBills, useSaveBill } from '@/lib/data'
 import { compressImage } from '@/lib/image'
 import type { Bill, BillLine } from '@/lib/types'
 import { cn, todayIso, tripDays } from '@/lib/utils'
 import { personById, personIds, trip, type PersonId } from '@/trip.config'
+import { AmountField, KeypadSlot, KeypadSlots } from '@/components/keypad'
 import { Money, PersonChip, PersonDot } from './parts'
 import { scanReceipt } from './scan'
-import { isDraft, lineProblem, lineSum, paidSharesChanged, shares, yen } from './split'
+import { customLeft, isDraft, lineProblem, lineSum, paidSharesChanged, shares, yen } from './split'
 
 export type BillStep = 'details' | 'lines' | 'split'
 type State = { id?: string; step?: BillStep; nonce: number }
@@ -104,6 +105,18 @@ function BillForm({
   const draft = isDraft(draftBill)
   const unpaidAgain = existing ? paidSharesChanged(existing, draftBill) : []
 
+  // Amounts giving out more than an item costs can't be saved, not even as a Draft.
+  const total = lineSum(lines)
+  const over = lines.find((l) => customLeft(l) < 0)
+  const left = lines.reduce((sum, l) => sum + Math.max(0, customLeft(l)), 0)
+  const status = over
+    ? { text: `${over.name_en || over.name_ja || 'Item'} ${yen(-customLeft(over))} too much`, bad: true }
+    : receiptTotal !== null && receiptTotal !== total
+      ? { text: `Off by ${yen(Math.abs(receiptTotal - total))} vs receipt`, bad: false }
+      : step === 'split' && left > 0
+        ? { text: `${yen(left)} left to give out`, bad: false }
+        : null
+
   const updateLine = (lineId: string, patch: Partial<BillLine>) =>
     setLines((ls) => ls.map((l) => (l.id === lineId ? { ...l, ...patch, units: resize(patch.units ?? l.units, patch.qty ?? l.qty) } : l)))
 
@@ -192,133 +205,166 @@ function BillForm({
   return (
     // Fills the Screen so the footer sits at the bottom even when a step is short.
     <div ref={top} className="flex min-h-full scroll-mt-20 flex-col">
-      <div className="mb-4 grid grid-cols-3 gap-1.5">
-        {steps.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => goTo(s.id)}
-            className={cn(
-              'h-9 rounded-full text-xs font-bold transition',
-              s.id === step ? 'bg-primary text-white' : i < index ? 'bg-primary-soft text-primary' : 'bg-canvas text-muted',
-            )}
-          >
-            {i + 1}. {s.label}
-          </button>
-        ))}
-      </div>
-
-      {step === 'details' && (
-        <div className="space-y-4">
-          <Photos keep={keep} added={added} processing={processing} onAdd={addPhoto} onRemoveKept={(p) => setKeep((k) => k.filter((x) => x !== p))} onRemoveAdded={(i) => setAdded((a) => a.filter((_, j) => j !== i))} />
-          <div>
-            <Button variant="soft" className="w-full" disabled={added.length === 0 || scanning || processing} onClick={scan}>
-              {scanning ? <Loader2 className="size-5 animate-spin" /> : <ScanText className="size-5" />}
-              {scanning ? 'Reading the receipt…' : lines.length ? 'Scan again (replaces items)' : 'Scan receipt'}
-            </Button>
-            <p className="mt-1.5 text-center text-xs text-muted">Reads the photo into items and translates them — or skip and add items by hand.</p>
-          </div>
-
-          <Field label="Shop">
-            <input className={inputClass} value={shop} onChange={(e) => setShop(e.target.value)} placeholder="e.g. Torikizoku" />
-          </Field>
-          <DayPicker value={day} onChange={setDay} />
-          <Field label="Time">
-            <input type="time" className={inputClass} value={time} onChange={(e) => e.target.value && setTime(e.target.value)} />
-          </Field>
-          <div>
-            <span className="mb-1.5 block text-sm font-semibold">Paid by</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              {trip.people.map((p) => (
-                <PersonChip key={p.id} id={p.id} active={payer === p.id} onClick={() => setPayer(p.id)} />
-              ))}
-            </div>
-          </div>
-          <div>
-            <span className="mb-1.5 block text-sm font-semibold">Sharing</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              {trip.people.map((p) => (
-                <PersonChip key={p.id} id={p.id} active={sharing.includes(p.id)} onClick={() => toggleSharing(p.id)} />
-              ))}
-            </div>
-          </div>
+      <KeypadSlots>
+        <div className="mb-4 grid grid-cols-3 gap-1.5">
+          {steps.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => goTo(s.id)}
+              className={cn(
+                'h-9 rounded-full text-xs font-semibold transition',
+                s.id === step ? 'bg-primary text-white' : i < index ? 'bg-primary-soft text-primary' : 'bg-canvas text-muted',
+              )}
+            >
+              {i + 1}. {s.label}
+            </button>
+          ))}
         </div>
-      )}
 
-      {step === 'lines' && (
-        <div className="space-y-2">
-          {lines.length === 0 && (
-            <p className="px-1 pb-1 text-sm text-muted">
-              Everything on the receipt, one row each — e.g. <span className="font-semibold text-ink">Draft beer ×6 ¥3,300</span>. Scan a photo on step 1 to fill this in, or add them by hand.
+        {step === 'details' && (
+          <div className="space-y-4">
+            <Photos keep={keep} added={added} processing={processing} onAdd={addPhoto} onRemoveKept={(p) => setKeep((k) => k.filter((x) => x !== p))} onRemoveAdded={(i) => setAdded((a) => a.filter((_, j) => j !== i))} />
+            <div>
+              <Button variant="soft" className="w-full" disabled={added.length === 0 || scanning || processing} onClick={scan}>
+                {scanning ? <Loader2 className="size-5 animate-spin" /> : <ScanText className="size-5" />}
+                {scanning ? 'Reading the receipt…' : lines.length ? 'Scan again (replaces items)' : 'Scan receipt'}
+              </Button>
+              <p className="mt-1.5 text-center text-xs text-muted">Reads the photo into items and translates them — or skip and add items by hand.</p>
+            </div>
+
+            <Field label="Shop">
+              <input className={inputClass} value={shop} onChange={(e) => setShop(e.target.value)} placeholder="e.g. Torikizoku" />
+            </Field>
+            <DayPicker value={day} onChange={setDay} />
+            <section>
+              <h3 className="mb-1.5 text-sm font-semibold">Time</h3>
+              <TimePicker value={time} onChange={setTime} />
+            </section>
+            <div>
+              <span className="mb-1.5 block text-sm font-semibold">Paid by</span>
+              <div className="grid grid-cols-4 gap-1.5">
+                {trip.people.map((p) => (
+                  <PersonChip key={p.id} id={p.id} active={payer === p.id} onClick={() => setPayer(p.id)} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="mb-1.5 block text-sm font-semibold">Sharing</span>
+              <div className="grid grid-cols-4 gap-1.5">
+                {trip.people.map((p) => (
+                  <PersonChip key={p.id} id={p.id} active={sharing.includes(p.id)} onClick={() => toggleSharing(p.id)} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 'lines' && (
+          <div className="space-y-2">
+            {lines.length === 0 && (
+              <p className="px-1 pb-1 text-sm text-muted">
+                Everything on the receipt, one row each — e.g. <span className="font-semibold text-ink">Draft beer ×6 ¥3,300</span>. Scan a photo on step 1 to fill this in, or add them by hand.
+              </p>
+            )}
+            {lines
+              .filter((l) => !l.extra)
+              .map((l) => (
+                <LineEditor key={l.id} line={l} onChange={(patch) => updateLine(l.id, patch)} onDelete={() => setLines((ls) => ls.filter((x) => x.id !== l.id))} />
+              ))}
+            <AddLine onClick={() => setLines((ls) => [...ls, newLine()])}>Add item</AddLine>
+
+            {/* Extras live apart from what was eaten: nobody picks who had them, they're spread by what each ate. */}
+            <div className="pt-3">
+              {lines.some((l) => l.extra) && (
+                <div className="mb-2 px-1">
+                  <h3 className="text-sm font-semibold">Tax, service & discounts</h3>
+                  <p className="text-xs text-muted">Spread over people by what each ate.</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                {lines
+                  .filter((l) => l.extra)
+                  .map((l) => (
+                    <ExtraEditor key={l.id} line={l} onChange={(patch) => updateLine(l.id, patch)} onDelete={() => setLines((ls) => ls.filter((x) => x.id !== l.id))} />
+                  ))}
+                <AddLine onClick={() => setLines((ls) => [...ls, newLine({ extra: true })])}>Add tax, service or discount</AddLine>
+              </div>
+            </div>
+            <Totals lines={lines} receiptTotal={receiptTotal} onReceiptTotal={setReceiptTotal} />
+          </div>
+        )}
+
+        {step === 'split' && (
+          <div className="space-y-3">
+            {lines.some((l) => !l.extra) ? (
+              <p className="px-1 text-sm text-muted">Tap who had each one. Tap more than one person to share it.</p>
+            ) : (
+              <p className="py-6 text-center text-sm text-muted">Add some items first.</p>
+            )}
+            {lines
+              .filter((l) => !l.extra)
+              .map((l) => (
+                <SplitLine key={l.id} line={l} sharing={sharing} onChange={(patch) => updateLine(l.id, patch)} />
+              ))}
+            {lines.some((l) => l.extra) && (
+              <div className="rounded-2xl bg-canvas p-3.5 text-sm">
+                <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Added on top</p>
+                {lines
+                  .filter((l) => l.extra)
+                  .map((l) => (
+                    <p key={l.id} className="flex justify-between">
+                      <span>{l.name_en || l.name_ja || 'Extra'}</span> <Money amount={l.price} />
+                    </p>
+                  ))}
+                <p className="mt-1 text-xs text-muted">Spread over people by what each ate.</p>
+              </div>
+            )}
+            <SharesPreview lines={lines} sharing={sharing} payer={payer} draft={draft} />
+          </div>
+        )}
+
+        <div className="flex-1" />
+        <div className="sticky -bottom-5 -mx-5 mt-5 -mb-5 border-t border-line bg-surface px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))]">
+          {unpaidAgain.length > 0 && (
+            <p className="mb-2 text-xs text-amber-700 in-data-keypad-open:hidden">
+              {unpaidAgain.map((p) => personById(p)?.name).join(', ')} had paid back — {unpaidAgain.length === 1 ? 'their share changes and goes' : 'their shares change and go'} back to unpaid.
             </p>
           )}
-          {lines.map((l) => (
-            <LineEditor key={l.id} line={l} onChange={(patch) => updateLine(l.id, patch)} onDelete={() => setLines((ls) => ls.filter((x) => x.id !== l.id))} />
-          ))}
-          <button
-            type="button"
-            onClick={() => setLines((ls) => [...ls, newLine()])}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line text-sm font-semibold text-muted active:bg-canvas"
-          >
-            <Plus className="size-4" /> Add item
-          </button>
-          <Totals lines={lines} receiptTotal={receiptTotal} onReceiptTotal={setReceiptTotal} />
-        </div>
-      )}
-
-      {step === 'split' && (
-        <div className="space-y-3">
-          {lines.some((l) => !l.extra) ? (
-            <p className="px-1 text-sm text-muted">Tap who had each one. Tap more than one person to share it.</p>
-          ) : (
-            <p className="py-6 text-center text-sm text-muted">Add some items first.</p>
-          )}
-          {lines
-            .filter((l) => !l.extra)
-            .map((l) => (
-              <SplitLine key={l.id} line={l} sharing={sharing} onChange={(patch) => updateLine(l.id, patch)} />
-            ))}
-          {lines.some((l) => l.extra) && (
-            <div className="rounded-2xl bg-canvas p-3.5 text-sm">
-              <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Added on top</p>
-              {lines
-                .filter((l) => l.extra)
-                .map((l) => (
-                  <p key={l.id} className="flex justify-between">
-                    <span>{l.name_en || l.name_ja || 'Extra'}</span> <Money amount={l.price} />
-                  </p>
-                ))}
-              <p className="mt-1 text-xs text-muted">Spread over people by what each ate.</p>
+          {/* The total stays in sight on every step, with whatever doesn't add up beside it. */}
+          {lines.length > 0 && (
+            <div className="mb-2 flex items-baseline gap-2 text-sm">
+              <span className="text-muted">Total</span>
+              <Money amount={total} className="font-semibold" />
+              {status && (
+                <span className={cn('min-w-0 flex-1 truncate text-right text-xs font-medium', status.bad ? 'text-red-600' : 'text-amber-700')}>{status.text}</span>
+              )}
             </div>
           )}
-          <SharesPreview lines={lines} sharing={sharing} payer={payer} draft={draft} />
-        </div>
-      )}
-
-      <div className="flex-1" />
-      <div className="sticky -bottom-5 -mx-5 mt-5 -mb-5 border-t border-line bg-surface px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-        {unpaidAgain.length > 0 && (
-          <p className="mb-2 text-xs text-amber-700">
-            {unpaidAgain.map((p) => personById(p)?.name).join(', ')} had paid back — {unpaidAgain.length === 1 ? 'their share changes and goes' : 'their shares change and go'} back to unpaid.
-          </p>
-        )}
-        <div className="flex gap-2">
-          {index > 0 && (
-            <Button variant="outline" onClick={() => goTo(steps[index - 1].id)}>
-              Back
+          {/* While an amount is being typed, its keypad takes the buttons' place. */}
+          <KeypadSlot />
+          <div className="flex gap-2 in-data-keypad-open:hidden">
+            {index > 0 && (
+              <Button variant="outline" className="h-11" onClick={() => goTo(steps[index - 1].id)}>
+                Back
+              </Button>
+            )}
+            {step !== 'split' && (
+              <Button variant="outline" className="h-11" disabled={save.isPending || processing || !!over} onClick={submit}>
+                {draft ? 'Save draft' : 'Save'}
+              </Button>
+            )}
+            <Button
+              className="h-11 flex-1"
+              disabled={save.isPending || processing || scanning || (step === 'split' && !!over)}
+              onClick={step === 'split' ? submit : () => goTo(steps[index + 1].id)}
+            >
+              {save.isPending && <Loader2 className="size-5 animate-spin" />}
+              {step === 'split' ? (draft ? 'Save draft' : 'Save bill') : 'Next'}
             </Button>
-          )}
-          {step !== 'split' && (
-            <Button variant="outline" disabled={save.isPending || processing} onClick={submit}>
-              {draft ? 'Save draft' : 'Save'}
-            </Button>
-          )}
-          <Button className="flex-1" disabled={save.isPending || processing || scanning} onClick={step === 'split' ? submit : () => goTo(steps[index + 1].id)}>
-            {save.isPending && <Loader2 className="size-5 animate-spin" />}
-            {step === 'split' ? (draft ? 'Save draft' : 'Save bill') : 'Next'}
-          </Button>
+          </div>
         </div>
-      </div>
+      </KeypadSlots>
     </div>
   )
 }
@@ -436,8 +482,6 @@ function Photos({
   )
 }
 
-const toInt = (v: string) => (v.trim() === '' || v === '-' ? 0 : Math.trunc(Number(v.replace(/[^\d-]/g, ''))) || 0)
-
 function LineEditor({ line, onChange, onDelete }: { line: BillLine; onChange: (patch: Partial<BillLine>) => void; onDelete: () => void }) {
   return (
     <div className="space-y-2 rounded-2xl border border-line p-3">
@@ -449,38 +493,79 @@ function LineEditor({ line, onChange, onDelete }: { line: BillLine; onChange: (p
       </div>
       {line.name_ja && <p className="px-1 text-xs text-muted">{line.name_ja}</p>}
       <div className="flex items-center gap-2">
-        <div className="relative w-16 shrink-0">
-          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted">×</span>
-          <input
-            className={cn(inputClass, 'h-11 pr-2 pl-7')}
-            inputMode="numeric"
-            aria-label="Quantity"
+        <div className="w-16 shrink-0">
+          <AmountField
+            label="Quantity"
+            prefix="×"
+            placeholder="1"
+            className="h-11"
             value={line.qty}
-            onChange={(e) => onChange({ qty: Math.min(99, Math.max(1, toInt(e.target.value))) })}
+            onChange={(n) => onChange({ qty: Math.min(99, Math.max(1, n ?? 1)) })}
           />
         </div>
-        <div className="relative min-w-0 flex-1">
-          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted">{line.price < 0 ? '−¥' : '¥'}</span>
-          <input
-            className={cn(inputClass, 'h-11', line.price < 0 ? 'pl-9' : 'pl-7')}
-            inputMode="numeric"
-            aria-label="Price for all of them"
-            value={Math.abs(line.price) || ''}
-            onChange={(e) => onChange({ price: Math.abs(toInt(e.target.value)) * (line.price < 0 ? -1 : 1) })}
-            placeholder="0"
-          />
+        <div className="min-w-0 flex-1">
+          <AmountField label="Price for all of them" className="h-11" value={line.price || null} onChange={(n) => onChange({ price: n ?? 0 })} />
         </div>
-        {line.extra && (
-          <Button variant="outline" size="sm" className="h-11 w-11 px-0" aria-label="Flip between charge and discount" onClick={() => onChange({ price: -line.price })}>
-            ±
-          </Button>
-        )}
-        <Chip active={line.extra} className="h-11" onClick={() => onChange({ extra: !line.extra })}>
-          Tax / fee
-        </Chip>
       </div>
       {line.qty > 1 && line.price !== 0 && <p className="px-1 text-xs text-muted">{yen(Math.round(line.price / line.qty))} each</p>}
     </div>
+  )
+}
+
+/** Tax, a service charge or a discount: a name, which way it goes and how much. */
+function ExtraEditor({ line, onChange, onDelete }: { line: BillLine; onChange: (patch: Partial<BillLine>) => void; onDelete: () => void }) {
+  // Kept apart from the price, which can't say "discount" while it's still 0.
+  const [discount, setDiscount] = useState(line.price < 0)
+  const flip = (to: boolean) => {
+    setDiscount(to)
+    onChange({ price: Math.abs(line.price) * (to ? -1 : 1) })
+  }
+  return (
+    <div className="space-y-2 rounded-2xl border border-line p-3">
+      <div className="flex gap-2">
+        <input className={cn(inputClass, 'h-11 flex-1')} value={line.name_en} onChange={(e) => onChange({ name_en: e.target.value })} placeholder="e.g. Service charge" />
+        <Button variant="ghost" size="icon" className="size-11" aria-label="Delete" onClick={onDelete}>
+          <Trash2 className="size-4" />
+        </Button>
+      </div>
+      {line.name_ja && <p className="px-1 text-xs text-muted">{line.name_ja}</p>}
+      <div className="flex items-center gap-2">
+        <div className="flex h-11 shrink-0 rounded-2xl bg-canvas p-1 ring-1 ring-line">
+          {[false, true].map((d) => (
+            <button
+              key={String(d)}
+              type="button"
+              aria-pressed={discount === d}
+              onClick={() => flip(d)}
+              className={cn('rounded-xl px-3 text-sm font-semibold transition', discount === d ? 'bg-surface text-ink shadow-sm' : 'text-muted')}
+            >
+              {d ? 'Discount' : 'Charge'}
+            </button>
+          ))}
+        </div>
+        <div className="min-w-0 flex-1">
+          <AmountField
+            label={discount ? 'Discount' : 'Charge'}
+            prefix={discount ? '−¥' : '+¥'}
+            className="h-11"
+            value={Math.abs(line.price) || null}
+            onChange={(n) => onChange({ price: (n ?? 0) * (discount ? -1 : 1) })}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AddLine({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line text-sm font-semibold text-muted active:bg-canvas"
+    >
+      <Plus className="size-4" /> {children}
+    </button>
   )
 }
 
@@ -490,20 +575,13 @@ function Totals({ lines, receiptTotal, onReceiptTotal }: { lines: BillLine[]; re
   return (
     <div className="space-y-2 rounded-2xl bg-canvas p-3">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-semibold">Items add up to</span>
-        <Money amount={total} withBaht className="font-bold" />
+        <span className="font-medium">Items add up to</span>
+        <Money amount={total} className="font-semibold" />
       </div>
       <div className="flex items-center justify-between gap-3 text-sm">
-        <span className="font-semibold">Receipt total</span>
-        <div className="relative w-36">
-          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted">¥</span>
-          <input
-            className={cn(inputClass, 'h-10 pl-7 text-right')}
-            inputMode="numeric"
-            value={receiptTotal ?? ''}
-            onChange={(e) => onReceiptTotal(e.target.value.trim() ? toInt(e.target.value) : null)}
-            placeholder="optional"
-          />
+        <span className="font-medium">Receipt total</span>
+        <div className="w-36">
+          <AmountField label="Receipt total" className="h-10 text-right" placeholder="optional" value={receiptTotal} onChange={onReceiptTotal} />
         </div>
       </div>
       {off && <p className="text-xs text-amber-700">Off by {yen(Math.abs(receiptTotal - total))} — check for a missing item, tax or discount.</p>}
@@ -514,7 +592,7 @@ function Totals({ lines, receiptTotal, onReceiptTotal }: { lines: BillLine[]; re
 function SplitLine({ line, sharing, onChange }: { line: BillLine; sharing: PersonId[]; onChange: (patch: Partial<BillLine>) => void }) {
   const problem = lineProblem(line)
   const eaters = line.custom ? (Object.keys(line.custom) as PersonId[]) : []
-  const customLeft = line.custom ? line.price - Object.values(line.custom).reduce<number>((s, v) => s + (v ?? 0), 0) : 0
+  const amountsLeft = customLeft(line)
   const notGiven = line.units.filter((u) => u.length === 0).length
 
   // When every Unit went to the same People, one row stands for all of them (Skewers ×4, everyone).
@@ -542,9 +620,9 @@ function SplitLine({ line, sharing, onChange }: { line: BillLine; sharing: Perso
   const status = !problem
     ? null
     : line.custom
-      ? customLeft > 0
-        ? `${yen(customLeft)} left to give out`
-        : `${yen(-customLeft)} too much`
+      ? amountsLeft > 0
+        ? `${yen(amountsLeft)} left to give out`
+        : `${yen(-amountsLeft)} too much`
       : line.qty === 1
         ? 'Who had it?'
         : notGiven === line.qty
@@ -567,9 +645,9 @@ function SplitLine({ line, sharing, onChange }: { line: BillLine; sharing: Perso
 
       <div className="mt-2 mb-3 flex flex-wrap items-center gap-1.5">
         {status ? (
-          <span className="mr-auto text-xs font-semibold text-amber-700">{status}</span>
+          <span className={cn('mr-auto text-xs font-medium', amountsLeft < 0 ? 'text-red-600' : 'text-amber-700')}>{status}</span>
         ) : (
-          <span className="mr-auto inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+          <span className="mr-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
             <Check className="size-3.5" /> Done
           </span>
         )}
@@ -593,14 +671,14 @@ function SplitLine({ line, sharing, onChange }: { line: BillLine; sharing: Perso
           {eaters.map((p) => (
             <div key={p} className="flex items-center gap-2">
               <PersonDot id={p} />
-              <span className="flex-1 text-sm font-semibold">{personById(p)?.name}</span>
-              <div className="relative w-32">
-                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted">¥</span>
-                <input
-                  className={cn(inputClass, 'h-10 pl-7 text-right')}
-                  inputMode="numeric"
-                  value={line.custom?.[p] ?? ''}
-                  onChange={(e) => onChange({ custom: { ...line.custom, [p]: toInt(e.target.value) } })}
+              <span className="flex-1 text-sm font-medium">{personById(p)?.name}</span>
+              <div className="w-32">
+                <AmountField
+                  label={`${personById(p)?.name}'s amount`}
+                  className="h-10 text-right"
+                  invalid={amountsLeft < 0}
+                  value={line.custom?.[p] ?? null}
+                  onChange={(n) => onChange({ custom: { ...line.custom, [p]: n ?? 0 } })}
                 />
               </div>
             </div>
@@ -624,7 +702,7 @@ function SplitLine({ line, sharing, onChange }: { line: BillLine; sharing: Perso
         <div className="space-y-1.5">
           {line.units.map((u, i) => (
             <div key={i} className="grid items-center gap-1.5" style={grid(line.qty > 1)}>
-              {line.qty > 1 && <span className="text-center text-xs font-semibold text-muted tabular-nums">{i + 1}</span>}
+              {line.qty > 1 && <span className="text-center text-xs font-medium text-muted tabular-nums">{i + 1}</span>}
               {sharing.map((p) => (
                 <PersonChip key={p} id={p} compact active={u.includes(p)} className={chip} onClick={() => toggleUnit(i, p)} />
               ))}
@@ -666,11 +744,11 @@ function SharesPreview({ lines, sharing, payer, draft }: { lines: BillLine[]; sh
       {[...all].map(([p, amount]) => (
         <p key={p} className="flex items-center gap-2 py-0.5 text-sm">
           <PersonDot id={p} className="size-5 text-[10px]" />
-          <span className="flex-1 font-semibold">
+          <span className="flex-1 font-medium">
             {personById(p)?.name}
             {p === payer && <span className="font-normal text-muted"> · paid the bill</span>}
           </span>
-          <Money amount={amount} className="font-bold" />
+          <Money amount={amount} className="font-semibold" />
         </p>
       ))}
     </div>

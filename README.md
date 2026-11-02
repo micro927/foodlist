@@ -36,7 +36,7 @@ npm run dev
 
 ## Next trip
 
-Everything trip-specific is in [`src/trip.config.ts`](src/trip.config.ts): name, dates, couples, people (for Bills) and the ฿ rate, meal and place slots, place categories, Good for tags, preset areas, category emoji and main colour. For a new trip:
+Everything trip-specific is in [`src/trip.config.ts`](src/trip.config.ts): name, dates, couples, people (for Bills), meal and place slots, place categories, Good for tags, preset areas, category emoji and main colour. For a new trip:
 
 1. Edit that file.
 2. Point `.env` at a fresh Supabase project and run `supabase db push`.

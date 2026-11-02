@@ -81,10 +81,10 @@ function BalancesCard({ bills, person }: { bills: Bill[]; person?: PersonId }) {
                 <PersonDot id={b.from} className="ring-2 ring-surface" />
                 <PersonDot id={b.to} className="ring-2 ring-surface" />
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
                 {personById(b.from)?.name} <ArrowRight className="inline size-3.5 text-muted" /> {personById(b.to)?.name}
               </span>
-              <Money amount={b.amount} className="font-bold" />
+              <Money amount={b.amount} className="font-semibold" />
               <Button size="sm" variant="soft" className="px-3" disabled={setPaid.isPending} onClick={() => payBack(b)}>
                 Mark paid
               </Button>
@@ -96,7 +96,8 @@ function BalancesCard({ bills, person }: { bills: Bill[]; person?: PersonId }) {
   )
 }
 
-function BillCard({ bill, person }: { bill: Bill; person?: PersonId }) {
+/** A bill in a list. `inDay` is a row inside a DateView day: no card of its own, and the day isn't repeated. */
+function BillCard({ bill, person, inDay }: { bill: Bill; person?: PersonId; inDay?: boolean }) {
   const openSheet = useOpenSheet()
   const draft = isDraft(bill)
   const unpaid = owed(bill).filter((s) => !s.paid)
@@ -107,15 +108,18 @@ function BillCard({ bill, person }: { bill: Bill; person?: PersonId }) {
     <button
       type="button"
       onClick={() => openSheet({ kind: 'bill', id: bill.id })}
-      className="flex w-full items-center gap-3 rounded-3xl border border-line bg-surface p-3 text-left transition active:scale-[0.99]"
+      className={cn(
+        'flex w-full items-center gap-3 text-left transition',
+        inDay ? 'px-4 py-3 active:bg-canvas' : 'rounded-3xl border border-line bg-surface px-4 py-3 active:scale-[0.99]',
+      )}
     >
-      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary-soft text-xl">🧾</span>
       <span className="min-w-0 flex-1">
         <span className="block leading-snug font-bold break-words">{bill.shop || 'Untitled bill'}</span>
         <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted">
-          {dayLabel(bill.day, false)} · {bill.time} · <PersonDot id={bill.payer} className="size-4 text-[9px]" /> paid
+          {!inDay && `${dayLabel(bill.day, false)} · `}
+          {bill.time} · <PersonDot id={bill.payer} className="size-4 text-[9px]" /> paid
         </span>
-        <span className="mt-1 block text-xs font-semibold">
+        <span className="mt-1 block text-xs font-medium">
           {draft ? (
             <span className="text-amber-600">Needs splitting</span>
           ) : person ? (
@@ -144,11 +148,11 @@ function BillCard({ bill, person }: { bill: Bill; person?: PersonId }) {
       <span className="text-right">
         {person ? (
           <>
-            <Money amount={myShare ?? 0} className="block font-bold" />
+            <Money amount={myShare ?? 0} className="block font-semibold" />
             <span className="text-xs text-muted">of {yen(lineSum(bill.lines))}</span>
           </>
         ) : (
-          <Money amount={lineSum(bill.lines)} className="font-bold" />
+          <Money amount={lineSum(bill.lines)} className="font-semibold" />
         )}
       </span>
     </button>
@@ -174,7 +178,7 @@ function PersonView({ bills }: { bills: Bill[] }) {
             onClick={() => setPerson(p.id)}
             style={p.id === person ? { backgroundColor: p.soft, borderColor: p.color, color: p.color } : undefined}
             className={cn(
-              'flex h-11 items-center justify-center gap-1.5 rounded-full border text-sm font-bold transition',
+              'flex h-11 items-center justify-center gap-1.5 rounded-full border text-sm font-semibold transition',
               p.id === person ? 'border-2' : 'border-line bg-surface text-muted',
             )}
           >
@@ -186,7 +190,7 @@ function PersonView({ bills }: { bills: Bill[] }) {
 
       <section className="rounded-3xl border border-line bg-surface p-4">
         <p className="text-sm text-muted">{personById(person)?.name} has eaten</p>
-        <Money amount={total} withBaht className="text-2xl font-extrabold" />
+        <Money amount={total} className="text-2xl font-extrabold" />
         <p className="mt-0.5 text-xs text-muted">Their share of every finished bill, whoever paid</p>
       </section>
 
@@ -214,24 +218,25 @@ function DateView({ bills }: { bills: Bill[] }) {
         const perPerson = spent(list)
         const total = list.filter((b) => !isDraft(b)).reduce((s, b) => s + lineSum(b.lines), 0)
         return (
-          <section key={day}>
-            <div className="mb-2 flex items-baseline justify-between px-1">
-              <h2 className="text-lg font-extrabold">{dayLabel(day)}</h2>
-              <Money amount={total} withBaht className="text-sm font-bold" />
+          // One card per day, so where a day starts and ends is never in doubt.
+          <section key={day} className="overflow-hidden rounded-3xl border border-line bg-surface">
+            <div className="border-b border-line bg-canvas/60 px-4 pt-3 pb-2.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="font-bold">{dayLabel(day)}</h2>
+                <Money amount={total} className="font-semibold" />
+              </div>
+              <div className="mt-1.5 grid grid-cols-4 gap-1">
+                {trip.people.map((p) => (
+                  <span key={p.id} className="flex min-w-0 items-center gap-1 text-xs font-medium text-muted">
+                    <PersonDot id={p.id} className="size-4 text-[9px]" />
+                    <Money amount={perPerson.get(p.id) ?? 0} className="truncate" />
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="mb-2 grid grid-cols-4 gap-1.5">
-              {trip.people.map((p) => (
-                <div key={p.id} className="rounded-2xl px-2 py-1.5 text-center" style={{ backgroundColor: p.soft }}>
-                  <p className="text-[11px] font-bold" style={{ color: p.color }}>
-                    {p.name}
-                  </p>
-                  <Money amount={perPerson.get(p.id) ?? 0} className="text-sm font-bold" />
-                </div>
-              ))}
-            </div>
-            <div className="space-y-2">
+            <div className="divide-y divide-line">
               {list.map((b) => (
-                <BillCard key={b.id} bill={b} />
+                <BillCard key={b.id} bill={b} inDay />
               ))}
             </div>
           </section>
@@ -256,7 +261,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
           type="button"
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
-          className={cn('relative h-8 rounded-full px-3 text-sm font-bold transition', value === o.id ? 'text-primary' : 'text-muted')}
+          className={cn('relative h-8 rounded-full px-3 text-sm font-semibold transition', value === o.id ? 'text-primary' : 'text-muted')}
         >
           {value === o.id && (
             <motion.span

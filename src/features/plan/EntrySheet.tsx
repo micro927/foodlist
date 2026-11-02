@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarCheck, Loader2, Search, Trash2, X } from 'lucide-react'
+import { CalendarCheck, Loader2, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Cover } from '@/components/Cover'
 import { CoupleToggle } from '@/components/CoupleToggle'
-import { Button, Chip, inputClass, Sheet, useSticky } from '@/components/ui'
+import { Button, Chip, inputClass, Sheet, TimePicker, useSticky } from '@/components/ui'
 import { useDeleteEntry, useItemMap, useItems, usePlanCounts, useSaveEntry } from '@/lib/data'
 import { useMe, useOrderedCouples } from '@/lib/device'
 import { itemEmoji, sections } from '@/lib/sections'
@@ -147,14 +147,7 @@ function EntryForm({
         <h3 className="mb-2 text-sm font-semibold">
           Time <span className="font-normal text-muted">(optional)</span>
         </h3>
-        <div className="flex gap-2">
-          <input type="time" className={cn(inputClass, 'flex-1')} value={time} onChange={(e) => setTime(e.target.value)} />
-          {time && (
-            <Button variant="outline" size="icon" className="size-12" aria-label="Clear time" onClick={() => setTime('')}>
-              <X className="size-5" />
-            </Button>
-          )}
-        </div>
+        <TimePicker value={time} onChange={setTime} onClear={() => setTime('')} />
       </section>
 
       <section>
