@@ -73,6 +73,15 @@ export type Backend = {
 
   /** Calls back whenever anyone changes data. Returns an unsubscribe function. */
   subscribe(onChange: (table: Table) => void): () => void;
+
+  /** Whether this phone is signed in (the session is kept on the phone, so this works offline). Demo mode always is. */
+  signedIn(): Promise<boolean>;
+  /** Signs in as the trip's one account (VITE_APP_EMAIL) with the password typed on the lock screen. */
+  signIn(password: string): Promise<void>;
+  /** Calls back when this phone signs in or out (e.g. the session expired). Returns an unsubscribe function. */
+  onAuthChange(onChange: (signedIn: boolean) => void): () => void;
+  /** The session's token, which /api routes check. */
+  accessToken(): Promise<string | null>;
 };
 
 // The tables behind each section. Places got their own tables so the original ones stay untouched.
@@ -89,13 +98,15 @@ const coverTables = {
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const email = (import.meta.env.VITE_APP_EMAIL as string | undefined) ?? "";
 
 export const isDemo = !url || !key;
 export const api: Backend =
   !url || !key ? demoBackend() : supabaseBackend(url, key);
 
 function supabaseBackend(url: string, key: string): Backend {
-  const db = createClient(url, key, { auth: { persistSession: false } });
+  // The database only answers the signed-in trip account (see the auth migration), so the session is kept.
+  const db = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
   const covers = db.storage.from("foodlist-covers");
 
   const must = <T>({ data, error }: { data: T; error: unknown }) => {
@@ -259,6 +270,24 @@ function supabaseBackend(url: string, key: string): Backend {
         )
         .subscribe();
       return () => void db.removeChannel(channel);
+    },
+
+    async signedIn() {
+      const { data } = await db.auth.getSession();
+      return !!data.session;
+    },
+    async signIn(password) {
+      if (!email) throw new Error("VITE_APP_EMAIL isn't set");
+      const { error } = await db.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    },
+    onAuthChange(onChange) {
+      const { data } = db.auth.onAuthStateChange((_event, session) => onChange(!!session));
+      return () => data.subscription.unsubscribe();
+    },
+    async accessToken() {
+      const { data } = await db.auth.getSession();
+      return data.session?.access_token ?? null;
     },
   };
 }
@@ -445,6 +474,18 @@ function demoBackend(): Backend {
     },
     coverUrl(path) {
       return path;
+    },
+
+    // Demo data never leaves the browser, so there's nothing to sign in to.
+    async signedIn() {
+      return true;
+    },
+    async signIn() {},
+    onAuthChange() {
+      return () => {};
+    },
+    async accessToken() {
+      return null;
     },
 
     subscribe(onChange) {

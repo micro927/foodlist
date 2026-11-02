@@ -1,5 +1,5 @@
+import { api } from '@/lib/api'
 import type { ScanResult } from '@/lib/types'
-import { local } from '@/lib/utils'
 
 const toBase64 = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -13,9 +13,11 @@ const toBase64 = (blob: Blob) =>
 export async function scanReceipt(photos: Blob[]): Promise<ScanResult> {
   let res: Response
   try {
+    // The server only scans for the signed-in trip account.
+    const token = await api.accessToken()
     res = await fetch('/api/scan', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-password': local.get('foodlist:unlocked') ?? '' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token ?? ''}` },
       body: JSON.stringify({
         photos: await Promise.all(photos.map(async (p) => ({ media_type: p.type, data: await toBase64(p) }))),
       }),

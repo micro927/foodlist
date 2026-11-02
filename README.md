@@ -21,18 +21,21 @@ npm run dev
    - Or paste the migration into the SQL Editor instead.
    - Optional: run [`supabase/seed.sql`](supabase/seed.sql) in the SQL Editor for some test restaurants.
    - Copy the **Project URL** and the **publishable key** (the legacy `anon` key also works). Never use the service_role or secret key.
-2. **`.env`:** set `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_APP_PASSWORD`.
+   - **Authentication → Users → Add user:** the trip account, with the email in `VITE_APP_EMAIL` and the password everyone types on the lock screen. Tick **Auto Confirm User**.
+   - **Authentication → Sign In / Providers:** turn off **Allow new users to sign up**.
+2. **`.env`:** set `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_APP_EMAIL`. The email is also written in [`supabase/migrations/20261102000000_trip_account.sql`](supabase/migrations/20261102000000_trip_account.sql); change both together.
 3. **Vercel:** import the repo. The framework preset is Vite. Add the same three environment variables and deploy.
    - For Bills → Scan, also add `ANTHROPIC_API_KEY` (from console.anthropic.com; a few dollars of credit covers a trip at roughly $0.04 per scan) and optionally `SCAN_DAILY_LIMIT` (default 30). Without the key, bills still work; lines are added by hand.
    - [`vercel.json`](vercel.json) schedules a daily cron to [`api/keepalive.ts`](api/keepalive.ts), which pings the database so the free Supabase project never pauses.
 4. **Phones:** open the site, enter the password once, then use Share → **Add to Home Screen**.
 
-## Security trade-off (accepted)
+## Security
 
-- The password is checked in the browser, and `VITE_*` variables are bundled into the public JS.
-- It keeps casual visitors out, not determined ones. Anyone who reads the bundle can edit the data or upload photos.
-- Changing `VITE_APP_PASSWORD` and redeploying signs everyone out.
-- `/api/scan` spends Anthropic credit. It checks the app password and a daily cap, but both can be read from the bundle, so keep only a small balance on the Anthropic account.
+- The lock screen signs in to Supabase as the one trip account. The password is never in the bundle; only the email is.
+- The database only answers that signed-in account: every table, the scan counter and photo uploads (see the `trip_account` migration). The publishable key alone gets nothing.
+- `/api/scan` asks Supabase who the caller is and only scans for the trip account, under a daily cap.
+- Photos are in a public bucket, so anyone holding a photo's exact URL can open it. The paths are long and random.
+- Each phone signs in once and stays signed in (the session renews itself) until its site data is cleared or the session is revoked in Supabase. A new password doesn't necessarily sign out phones that are already in.
 
 ## Next trip
 

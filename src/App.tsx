@@ -1,7 +1,8 @@
-import { useState, type ReactNode, type SubmitEventHandler } from "react";
+import { useEffect, useState, type ReactNode, type SubmitEventHandler } from "react";
 import { motion } from "motion/react";
 import {
   CalendarDays,
+  Loader2,
   Lock,
   Map as MapIcon,
   MapPin,
@@ -9,13 +10,13 @@ import {
   UtensilsCrossed,
   WifiOff,
 } from "lucide-react";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { Button, inputClass } from "@/components/ui";
-import { isDemo } from "@/lib/api";
+import { api, isDemo } from "@/lib/api";
 import { replaceUrl, useBackHandler, useBackTrap } from "@/lib/back";
 import { useLiveUpdates } from "@/lib/data";
 import { useOnline } from "@/lib/device";
-import { cn, local } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { trip } from "@/trip.config";
 import { AreasPage } from "@/features/areas/AreasPage";
 import { BillsPage } from "@/features/bills/BillsPage";
@@ -23,27 +24,22 @@ import { ItemsPage } from "@/features/items/ItemsPage";
 import { PlanPage } from "@/features/plan/PlanPage";
 import { SheetsProvider } from "@/features/sheets";
 
-// Client-side gate only (the password ships in the bundle) — keeps casual visitors out.
-const PASSWORD =
-  (import.meta.env.VITE_APP_PASSWORD as string | undefined) ?? "";
-const UNLOCK_KEY = "foodlist:unlocked";
-
 export function App() {
-  // Stays unlocked on this phone until the password in .env changes.
-  const [unlocked, setUnlocked] = useState(
-    () => !PASSWORD || local.get(UNLOCK_KEY) === PASSWORD
-  );
+  // Signed in to Supabase as the trip account; the session stays on this phone until it signs out or expires.
+  // null while the saved session is being read.
+  const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  useEffect(() => {
+    api.signedIn().then(setUnlocked);
+    return api.onAuthChange(setUnlocked);
+  }, []);
   return (
     <>
-      {unlocked ? (
+      {unlocked === null ? (
+        <div className="aurora min-h-dvh" />
+      ) : unlocked ? (
         <Shell />
       ) : (
-        <PasswordGate
-          onUnlock={() => {
-            local.set(UNLOCK_KEY, PASSWORD);
-            setUnlocked(true);
-          }}
-        />
+        <PasswordGate onUnlock={() => setUnlocked(true)} />
       )}
       <Toaster
         position="top-center"
@@ -179,13 +175,22 @@ function TabButton({
 function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
   const [value, setValue] = useState("");
   const [wrong, setWrong] = useState(false);
+  const [checking, setChecking] = useState(false);
 
-  const submit: SubmitEventHandler<HTMLFormElement> = (e) => {
+  const submit: SubmitEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
-    if (value === PASSWORD) onUnlock();
-    else {
-      setWrong(true);
-      setValue("");
+    setChecking(true);
+    try {
+      await api.signIn(value);
+      onUnlock();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      if (/invalid login credentials/i.test(message)) {
+        setWrong(true);
+        setValue("");
+      } else toast.error(message || "Couldn't sign in — check the connection");
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -225,7 +230,8 @@ function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
         />
-        <Button type="submit" className="mt-3 w-full" disabled={!value}>
+        <Button type="submit" className="mt-3 w-full" disabled={!value || checking}>
+          {checking && <Loader2 className="size-5 animate-spin" />}
           Let's eat
         </Button>
       </motion.form>
