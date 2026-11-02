@@ -52,7 +52,7 @@ export function AreaDetailSheet({ state, onClose }: { state: { id: string } | nu
             const g = goodForById(id)
             return (
               g && (
-                <span key={id} className="inline-flex h-8 items-center gap-1 rounded-full bg-primary-soft px-3 text-sm font-semibold text-primary">
+                <span key={id} className="inline-flex h-8 items-center gap-1 rounded-full bg-primary-soft px-3 text-sm font-medium text-primary">
                   {g.emoji} {g.label}
                 </span>
               )

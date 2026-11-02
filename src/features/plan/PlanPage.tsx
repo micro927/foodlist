@@ -97,7 +97,7 @@ export function PlanPage() {
             })}
           </div>
 
-          <div className="grid grid-cols-2 gap-1.5 pb-2 text-center text-xs font-bold">
+          <div className="grid grid-cols-2 gap-1.5 pb-2 text-center text-xs font-semibold">
             {trip.couples.map((c) => (
               <div key={c.id} className="rounded-full py-1.5" style={{ backgroundColor: c.soft, color: c.color }}>
                 {c.emoji} {c.name}
@@ -113,10 +113,10 @@ export function PlanPage() {
         {tripDays.map((d) => (
           <section key={d.date} id={`day-${d.date}`} data-day={d.date} className="scroll-mt-48">
             <h2 className="mb-2 flex items-baseline gap-2 px-1">
-              <span className="text-lg font-extrabold">
+              <span className="text-lg font-bold">
                 {d.weekday} {d.dayMonth}
               </span>
-              <span className="text-sm font-semibold text-muted">Day {d.number}</span>
+              <span className="text-sm font-medium text-muted">Day {d.number}</span>
               {d.date === today && <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-white">Today</span>}
             </h2>
             <div className="space-y-1 rounded-3xl border border-line bg-surface p-2">
@@ -152,7 +152,7 @@ function SlotRow({ section, day, slot, entries }: { section: Section; day: strin
   return (
     <div className="py-1">
       <div className="flex items-center justify-between px-2 pb-1.5">
-        <span className="text-xs font-bold text-muted">
+        <span className="text-xs font-semibold text-muted">
           {slot.emoji} {slot.label}
         </span>
         <button type="button" aria-label={`Add to ${slot.label}`} onClick={add} className="grid size-7 place-items-center rounded-full text-muted active:bg-canvas">
@@ -230,7 +230,7 @@ function NotScheduled({ section }: { section: Section }) {
     <section className="rounded-3xl border border-line bg-surface">
       <button type="button" onClick={toggle} className="flex w-full items-center gap-2 px-4 py-3 text-left">
         <span className="flex-1 font-bold">
-          Not scheduled yet <span className="font-semibold text-muted">{list.length}</span>
+          Not scheduled yet <span className="font-medium text-muted">{list.length}</span>
         </span>
         <ChevronDown className={cn('size-5 text-muted transition', open && 'rotate-180')} />
       </button>
@@ -274,7 +274,7 @@ function SectionSwitch({ value, onChange }: { value: Section; onChange: (s: Sect
           type="button"
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
-          className={cn('relative h-8 rounded-full px-3 text-sm font-bold transition', value === o.id ? 'text-primary' : 'text-muted')}
+          className={cn('relative h-8 rounded-full px-3 text-sm font-semibold transition', value === o.id ? 'text-primary' : 'text-muted')}
         >
           {value === o.id && (
             <motion.span

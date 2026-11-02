@@ -101,7 +101,7 @@ export function ItemRow({ section, item, planned }: Props) {
             </a>
           )}
           {planned > 0 && (
-            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-muted">
+            <span className="inline-flex items-center gap-0.5 text-xs font-medium text-muted">
               <CalendarCheck className="size-3" /> {planned > 1 ? `×${planned}` : 'Planned'}
             </span>
           )}

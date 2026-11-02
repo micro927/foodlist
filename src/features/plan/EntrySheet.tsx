@@ -247,7 +247,7 @@ function ItemPicker({ section, onPick }: { section: Section; onPick: (r: Item) =
                 ))}
               </span>
               {(counts.get(r.id) ?? 0) > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-muted">
+                <span className="inline-flex items-center gap-0.5 text-xs font-medium text-muted">
                   <CalendarCheck className="size-3.5" />
                   {counts.get(r.id)}
                 </span>

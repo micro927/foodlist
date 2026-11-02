@@ -13,7 +13,7 @@ export function PageTitle({ title, count }: { title: string; count: number }) {
     <div className="flex-1">
       <p className="text-[11px] font-bold tracking-[0.14em] text-primary uppercase">{trip.name}</p>
       <h1 className="text-2xl leading-tight font-extrabold">
-        {title} <span className="text-base font-semibold text-muted">{count}</span>
+        {title} <span className="text-base font-medium text-muted">{count}</span>
       </h1>
     </div>
   )

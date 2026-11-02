@@ -327,7 +327,7 @@ export function ItemsPage({ section }: { section: Section }) {
         )}
 
         {section === "eats" && (
-          <p className="mt-10 text-center text-[11px] font-semibold text-muted">
+          <p className="mt-10 text-center text-[11px] font-medium text-muted">
             v{appVersion.trim()}
           </p>
         )}

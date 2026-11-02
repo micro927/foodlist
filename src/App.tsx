@@ -157,7 +157,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold",
+        "relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold",
         active ? "text-ink" : "text-muted"
       )}
     >
