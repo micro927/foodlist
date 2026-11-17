@@ -20,20 +20,7 @@ export function PageTitle({ title, count }: { title: string; count: number }) {
   )
 }
 
-export function ViewToggle({ view, onChange }: { view: 'grid' | 'list'; onChange: (v: 'grid' | 'list') => void }) {
-  return (
-    <Button
-      variant="outline"
-      size="icon"
-      aria-label={view === 'grid' ? 'Show as list' : 'Show as grid'}
-      onClick={() => onChange(view === 'grid' ? 'list' : 'grid')}
-    >
-      {view === 'grid' ? <List className="size-5" /> : <LayoutGrid className="size-5" />}
-    </Button>
-  )
-}
-
-/** How Eats and Places can be shown. */
+/** How Eats, Places and Areas can be shown (only Eats has a map). */
 export type View = 'list' | 'grid' | 'map'
 
 const viewIcons = { list: List, grid: LayoutGrid, map: MapIcon } satisfies Record<View, unknown>
