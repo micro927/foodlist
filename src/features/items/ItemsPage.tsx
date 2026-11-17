@@ -15,11 +15,12 @@ import {
   Fab,
   FilterChip,
   GridSkeleton,
-  MapToggle,
   OptionRow,
   PageTitle,
   SearchField,
-  ViewToggle,
+  ViewButton,
+  viewOptions,
+  type View,
   type Option,
 } from "@/components/browse";
 import { Button, Chip, Sheet, useSticky } from "@/components/ui";
@@ -110,21 +111,20 @@ export function ItemsPage({ section }: { section: Section }) {
   const [sort, setSortState] = useState<SortKey>(
     () => (local.get(`${meta.storagePrefix}sort`) as SortKey) || "name"
   );
-  const [view, setViewState] = useState<"grid" | "list">(() =>
-    local.get(`${meta.storagePrefix}view`) === "grid" ? "grid" : "list"
-  );
-  const [picker, setPicker] = useState<keyof Filters | "sort" | "me" | null>(
-    null
-  );
-  // The map remembers itself separately, so leaving it returns to the list or grid it came from.
-  const [mapOn, setMapState] = useState(
-    () => meta.map && local.get(`${meta.storagePrefix}map`) === "1"
-  );
-  const setMap = (on: boolean) => {
-    setMapState(on);
-    local.set(`${meta.storagePrefix}map`, on ? "1" : null);
-    window.scrollTo({ top: 0 });
-  };
+  const [view, setViewState] = useState<View>(() => {
+    const saved = local.get(`${meta.storagePrefix}view`);
+    // The map used to be remembered under its own key.
+    if (
+      meta.map &&
+      (saved === "map" || local.get(`${meta.storagePrefix}map`) === "1")
+    )
+      return "map";
+    return saved === "grid" ? "grid" : "list";
+  });
+  const [picker, setPicker] = useState<
+    keyof Filters | "sort" | "me" | "view" | null
+  >(null);
+  const mapOn = view === "map";
   // Locate new or changed links in the background, so pins are ready when the map opens.
   const { locating, retry: retryLocating } = useLocateMissing(
     meta.map ? items : noItems
@@ -136,10 +136,12 @@ export function ItemsPage({ section }: { section: Section }) {
     setSortState(s),
     local.set(`${meta.storagePrefix}sort`, s)
   );
-  const setView = (v: "grid" | "list") => (
-    setViewState(v),
-    local.set(`${meta.storagePrefix}view`, v)
-  );
+  const setView = (v: View) => {
+    setViewState(v);
+    local.set(`${meta.storagePrefix}view`, v);
+    local.set(`${meta.storagePrefix}map`, null);
+    window.scrollTo({ top: 0 });
+  };
 
   const categoryOptions = useMemo(
     () =>
@@ -205,43 +207,51 @@ export function ItemsPage({ section }: { section: Section }) {
   const pickerConfig = useSticky(
     picker === null
       ? null
-      : picker === "sort"
+      : picker === "view"
         ? {
-            title: "Sort by",
-            options: sortOptions,
-            value: sort,
+            title: "Show as",
+            options: viewOptions(meta.map),
+            value: view,
             clearable: false,
           }
-        : picker === "me"
+        : picker === "sort"
           ? {
-              title: "Which couple are you?",
-              options: trip.couples.map((c): Option => ({
-                value: c.id,
-                label: `${c.emoji} ${c.name}`,
-              })),
-              value: me,
-              clearable: true,
+              title: "Sort by",
+              options: sortOptions,
+              value: sort,
+              clearable: false,
             }
-          : {
-              title: {
-                category: "Category",
-                area: "Area",
-                interest: "Who wants it",
-                planned: "Plan status",
-              }[picker],
-              options: {
-                category: categoryOptions,
-                area: areaOptions,
-                interest: interestOptions,
-                planned: plannedOptions,
-              }[picker],
-              value: filters[picker],
-              clearable: true,
-            }
+          : picker === "me"
+            ? {
+                title: "Which couple are you?",
+                options: trip.couples.map((c): Option => ({
+                  value: c.id,
+                  label: `${c.emoji} ${c.name}`,
+                })),
+                value: me,
+                clearable: true,
+              }
+            : {
+                title: {
+                  category: "Category",
+                  area: "Area",
+                  interest: "Who wants it",
+                  planned: "Plan status",
+                }[picker],
+                options: {
+                  category: categoryOptions,
+                  area: areaOptions,
+                  interest: interestOptions,
+                  planned: plannedOptions,
+                }[picker],
+                value: filters[picker],
+                clearable: true,
+              }
   );
 
   function choose(value: string | null) {
-    if (picker === "sort") setSort(value as SortKey);
+    if (picker === "view") setView(value as View);
+    else if (picker === "sort") setSort(value as SortKey);
     else if (picker === "me") setMe(value as CoupleId | null);
     else if (picker) setFilters((f) => ({ ...f, [picker]: value }));
     setPicker(null);
@@ -271,8 +281,7 @@ export function ItemsPage({ section }: { section: Section }) {
                 <UserRound className="size-5" />
               )}
             </Button>
-            {meta.map && <MapToggle on={mapOn} onChange={setMap} />}
-            {!mapOn && <ViewToggle view={view} onChange={setView} />}
+            <ViewButton view={view} onClick={() => setPicker("view")} />
           </div>
 
           <SearchField
@@ -426,6 +435,7 @@ export function ItemsPage({ section }: { section: Section }) {
                 key={o.value}
                 label={o.label}
                 count={o.count}
+                icon={o.icon}
                 selected={pickerConfig.value === o.value}
                 onClick={() => choose(o.value)}
               />
