@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { fail, tripAccount, type SupabaseCaller } from "./_auth.js";
 
 // Bills → Scan: reads receipt photos into Lines with a rough English name for each.
 // The API key stays on the server. The app password and a daily cap keep strangers from spending credit;
@@ -56,15 +57,9 @@ type Line = { name_ja: string; name_en: string; qty: number; price: number; extr
 type Photo = { data: string; media_type: "image/webp" | "image/jpeg" | "image/png" };
 
 export async function POST(request: Request) {
-  const url = process.env.VITE_SUPABASE_URL;
-  const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return fail(500, "Scan isn't set up: the Supabase env is missing");
-  // Only the signed-in trip account may spend Anthropic credit: Supabase vouches for the token's email.
-  const supabase = { url, key, token: request.headers.get("authorization") ?? "" };
-  const user = await fetch(`${url}/auth/v1/user`, { headers: { apikey: key, Authorization: supabase.token } });
-  if (!user.ok) return fail(401, "Signed out — open the app again and sign in");
-  const { email } = (await user.json()) as { email?: string };
-  if (!email || email !== process.env.VITE_APP_EMAIL) return fail(403, "This account can't scan");
+  // Only the signed-in trip account may spend Anthropic credit.
+  const supabase = await tripAccount(request);
+  if (supabase instanceof Response) return supabase;
   if (!process.env.ANTHROPIC_API_KEY)
     return fail(500, "Scan isn't set up: ANTHROPIC_API_KEY is missing");
 
@@ -127,12 +122,8 @@ function foldServiceCharge(lines: Line[]): Omit<Line, "service">[] {
   return lines.filter((l) => !l.service).map((l) => strip({ ...l, price: l.price + (added.get(l) ?? 0) }));
 }
 
-function fail(status: number, error: string) {
-  return Response.json({ error }, { status });
-}
-
 /** Counts today's scans (Tokyo time) in Supabase and records this one, as the signed-in account. */
-async function underDailyLimit({ url, key, token }: { url: string; key: string; token: string }) {
+async function underDailyLimit({ url, key, token }: SupabaseCaller) {
   const headers = { apikey: key, Authorization: token, "Content-Type": "application/json" };
 
   const tokyoDay = new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 10);

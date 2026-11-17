@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { coordsFromUrl, placeQuery, type LocateResult } from "./maplink";
 import type {
   Area,
   AreaFields,
@@ -6,6 +7,7 @@ import type {
   BillFields,
   Item,
   ItemFields,
+  ItemLocation,
   PlanEntry,
   PlanEntryFields,
   Section,
@@ -17,7 +19,8 @@ export type Table =
   | "places"
   | "place_plan_entries"
   | "areas"
-  | "bills";
+  | "bills"
+  | "item_locations";
 
 /** Anything with a cover photo. */
 export type CoverOwner = Section | "areas";
@@ -47,6 +50,12 @@ export type Backend = {
     patch: Partial<PlanEntryFields>
   ): Promise<void>;
   deleteEntry(section: Section, id: string): Promise<void>;
+
+  /** Where Restaurants and Places are, for the map. Rows of deleted items may linger and are ignored. */
+  listLocations(): Promise<ItemLocation[]>;
+  saveLocations(rows: ItemLocation[]): Promise<void>;
+  /** Finds where each Maps link points, or the place name to search for. Asks /api/locate, which can follow short links. */
+  locate(urls: string[]): Promise<Record<string, LocateResult>>;
 
   listAreas(): Promise<Area[]>;
   createArea(fields: AreaFields): Promise<Area>;
@@ -145,6 +154,7 @@ function supabaseBackend(url: string, key: string): Backend {
     },
     async deleteItem(section, item) {
       must(await db.from(tables[section].items).delete().eq("id", item.id));
+      await db.from("item_locations").delete().eq("item_id", item.id);
       if (item.cover_path) await covers.remove([item.cover_path]);
     },
 
@@ -171,6 +181,26 @@ function supabaseBackend(url: string, key: string): Backend {
     },
     async deleteEntry(section, id) {
       must(await db.from(tables[section].plan).delete().eq("id", id));
+    },
+
+    async listLocations() {
+      return must(
+        await db.from("item_locations").select("item_id, maps_url, lat, lng, query")
+      ) as ItemLocation[];
+    },
+    async saveLocations(rows) {
+      if (rows.length) must(await db.from("item_locations").upsert(rows));
+    },
+    async locate(urls) {
+      const token = (await db.auth.getSession()).data.session?.access_token ?? "";
+      const res = await fetch("/api/locate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ urls }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error ?? "Couldn't find locations");
+      return body as Record<string, LocateResult>;
     },
 
     async listAreas() {
@@ -257,6 +287,7 @@ function supabaseBackend(url: string, key: string): Backend {
         "place_plan_entries",
         "areas",
         "bills",
+        "item_locations",
       ];
       const channel = all
         .reduce(
@@ -301,6 +332,7 @@ function demoBackend(): Backend {
     placePlan: PlanEntry[];
     areas: Area[];
     bills: Bill[];
+    locations: ItemLocation[];
   };
   const keys = {
     eats: { items: "restaurants", plan: "plan" },
@@ -378,6 +410,7 @@ function demoBackend(): Backend {
       const { items, plan } = keys[section];
       store[items] = store[items].filter((x) => x.id !== item.id);
       store[plan] = store[plan].filter((e) => e.item_id !== item.id);
+      store.locations = store.locations.filter((l) => l.item_id !== item.id);
       save(itemTable(section));
     },
 
@@ -404,6 +437,24 @@ function demoBackend(): Backend {
       const k = keys[section].plan;
       store[k] = store[k].filter((e) => e.id !== id);
       save(planTable(section));
+    },
+
+    async listLocations() {
+      return [...store.locations];
+    },
+    async saveLocations(rows) {
+      const ids = new Set(rows.map((r) => r.item_id));
+      store.locations = [...store.locations.filter((l) => !ids.has(l.item_id)), ...rows];
+      save("item_locations");
+    },
+    // No server in demo mode, so short links can't be followed: only what's written in the link itself.
+    async locate(urls) {
+      return Object.fromEntries(
+        urls.map((u) => {
+          const query = placeQuery(u);
+          return [u, coordsFromUrl(u) ?? (query ? { query } : null)];
+        })
+      );
     },
 
     async listAreas() {
@@ -550,7 +601,10 @@ function demoSeed() {
       ["fair_bee"],
       "All you can eat ¥5000",
       30,
-      { inspo_url: "https://www.youtube.com/" }
+      {
+        inspo_url: "https://www.youtube.com/",
+        maps_url: "https://maps.google.com/?q=Kizuna+Sushi+Shinjuku",
+      }
     ),
     r(
       "d4",
@@ -644,5 +698,19 @@ function demoSeed() {
       updated_at: at(3),
     },
   ];
-  return { restaurants, plan, places, placePlan, areas, bills };
+  // Demo links are ?q= searches with no coordinates, so the seed places them on the map itself.
+  const locations: ItemLocation[] = (
+    [
+      ["d1", 35.6702, 139.7636],
+      ["d3", 35.6938, 139.7034],
+      ["d5", 35.6609, 139.7005],
+    ] as const
+  ).map(([item_id, lat, lng]) => ({
+    item_id,
+    lat,
+    lng,
+    query: null,
+    maps_url: restaurants.find((x) => x.id === item_id)!.maps_url!,
+  }));
+  return { restaurants, plan, places, placePlan, areas, bills, locations };
 }

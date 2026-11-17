@@ -13,6 +13,8 @@ export const sections = {
     slots: trip.slots,
     slotHeading: 'Meal',
     defaultSlot: 'dinner',
+    /** Has a map view (pins located from each Maps link). */
+    map: true,
     /** Keeps the keys Eats already used so saved preferences survive. */
     storagePrefix: 'foodlist:',
     empty: { emoji: '🍣', body: "Add the first restaurant you're dreaming about." },
@@ -27,6 +29,7 @@ export const sections = {
     slots: trip.placeSlots,
     slotHeading: 'Time of day',
     defaultSlot: 'afternoon',
+    map: false,
     storagePrefix: 'foodlist:places:',
     empty: { emoji: '🎡', body: 'Add the first place you want to see.' },
     placeholders: { name: 'e.g. teamLab Planets', category: '', notes: 'Book tickets ahead, closes 8pm…' },
@@ -42,6 +45,7 @@ export const sections = {
     slots: readonly { id: SlotId; label: string; emoji: string }[]
     slotHeading: string
     defaultSlot: SlotId
+    map: boolean
     storagePrefix: string
     empty: { emoji: string; body: string }
     placeholders: { name: string; category: string; notes: string }

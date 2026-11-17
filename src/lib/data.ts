@@ -1,14 +1,18 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CoupleId } from '@/trip.config'
+import { toast } from 'sonner'
 import { api, type Table } from './api'
-import type { Area, AreaFields, Bill, BillFields, Item, ItemFields, PlanEntryFields, Section } from './types'
+import { useOnline } from './device'
+import { isGoogleMapsLink } from './maplink'
+import type { Area, AreaFields, Bill, BillFields, Item, ItemFields, ItemLocation, PlanEntryFields, Section } from './types'
 
 const keys = {
   items: (section: Section) => ['items', section] as const,
   plan: (section: Section) => ['plan', section] as const,
   areas: ['areas'] as const,
   bills: ['bills'] as const,
+  locations: ['locations'] as const,
 }
 
 const keyOf: Record<Table, readonly string[]> = {
@@ -18,6 +22,7 @@ const keyOf: Record<Table, readonly string[]> = {
   place_plan_entries: keys.plan('places'),
   areas: keys.areas,
   bills: keys.bills,
+  item_locations: keys.locations,
 }
 
 export function useItems(section: Section) {
@@ -40,6 +45,96 @@ export function useItemMap(section: Section) {
 export function useAreaMap() {
   const { data } = useAreas()
   return useMemo(() => new Map((data ?? []).map((a) => [a.id, a])), [data])
+}
+
+/** Where each Restaurant or Place is, by item id. `loaded` is false until the saved locations have been read. */
+export function useLocations() {
+  const { data, isSuccess } = useQuery({ queryKey: keys.locations, queryFn: api.listLocations })
+  const locations = useMemo(() => new Map((data ?? []).map((l) => [l.item_id, l])), [data])
+  return { locations, loaded: isSuccess }
+}
+
+const LOCATE_BATCH = 10
+
+/**
+ * Looks up items whose Maps link hasn't been looked up yet (new items, or a link that changed) and saves what's
+ * found for every phone: coordinates, or only the place's name, which the map then searches with Google Places.
+ * Each link is tried once per session; `retry` tries the ones that found nothing again.
+ */
+export function useLocateMissing(items: Item[]) {
+  const qc = useQueryClient()
+  const online = useOnline()
+  const { locations, loaded } = useLocations()
+  const tried = useRef(new Set<string>())
+  const warned = useRef(false)
+  const [working, setWorking] = useState(0)
+  // Bumped by retry: also looks up links already saved as "couldn't locate".
+  const [retries, setRetries] = useState(0)
+
+  useEffect(() => {
+    if (!online || !loaded) return
+    const missing = items.filter((i) => {
+      const saved = locations.get(i.id)
+      // Only Google Maps links can be located (not Facebook, Instagram…).
+      if (!i.maps_url || !isGoogleMapsLink(i.maps_url)) return false
+      // Done once it has coordinates or a name to search; a link that found nothing is tried once a session.
+      if (saved?.maps_url === i.maps_url && (saved.lat !== null || saved.query !== null)) return false
+      const key = `${retries} ${i.id} ${i.maps_url}`
+      if (tried.current.has(key)) return false
+      tried.current.add(key)
+      return true
+    })
+    if (!missing.length) return
+
+    setWorking((n) => n + 1)
+    ;(async () => {
+      for (let i = 0; i < missing.length; i += LOCATE_BATCH) {
+        const batch = missing.slice(i, i + LOCATE_BATCH)
+        try {
+          const found = await api.locate([...new Set(batch.map((item) => item.maps_url!))])
+          const rows: ItemLocation[] = batch
+            .filter((item) => item.maps_url! in found)
+            .map((item) => {
+              const result = found[item.maps_url!]
+              return {
+                item_id: item.id,
+                maps_url: item.maps_url!,
+                lat: result && 'lat' in result ? result.lat : null,
+                lng: result && 'lng' in result ? result.lng : null,
+                query: result && 'query' in result ? result.query : null,
+              }
+            })
+          await api.saveLocations(rows)
+          await qc.invalidateQueries({ queryKey: keys.locations })
+        } catch (err) {
+          // Once per session: these stay off the map until the next session or a retry.
+          if (!warned.current) {
+            warned.current = true
+            toast.error(err instanceof Error && err.message ? `Map: ${err.message}` : "Couldn't look up map locations")
+          }
+        }
+      }
+    })().finally(() => setWorking((n) => n - 1))
+  }, [items, locations, loaded, online, qc, retries])
+
+  const retry = useCallback(() => {
+    warned.current = false
+    setRetries((n) => n + 1)
+  }, [])
+
+  return { locating: working > 0, retry }
+}
+
+/** Saves locations found on this phone (e.g. by the map's place-name search) for every phone. */
+export function useSaveLocations() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (rows: ItemLocation[]) => {
+      await api.saveLocations(rows)
+      await qc.invalidateQueries({ queryKey: keys.locations })
+    },
+    [qc],
+  )
 }
 
 /** How many plan entries each restaurant or place has. */

@@ -54,3 +54,52 @@ body {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* Eats map pins: the category emoji in a white badge with a tail, ringed by who wants to go; a dot when planned.
+   Google anchors a pin at its bottom centre, so the tail's tip sits on the place. */
+.item-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.3));
+}
+.item-pin::after {
+  content: '';
+  margin-top: -2px;
+  border: 7px solid transparent;
+  border-top: 9px solid var(--ring);
+  border-bottom: 0;
+}
+.item-pin-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  background: var(--color-surface);
+  border: 3px solid var(--ring);
+  font-size: 20px;
+  line-height: 1;
+}
+.item-pin-badge i {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  border: 2px solid var(--color-surface);
+}
+
+/* "You are here" on the Eats map. */
+.here-dot {
+  width: 18px;
+  height: 18px;
+  transform: translateY(50%);
+  border-radius: 9999px;
+  background: #1f7fd6;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgb(31 127 214 / 0.2), 0 1px 3px rgb(0 0 0 / 0.3);
+}

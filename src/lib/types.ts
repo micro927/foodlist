@@ -18,6 +18,18 @@ export type Item = {
   updated_at: string
 }
 
+/** Where a Restaurant or Place is, read from its Maps link. Lives in its own table (see ADR 0001). */
+export type ItemLocation = {
+  item_id: string
+  /** The link these coordinates came from; once the item's link changes, the row is stale. */
+  maps_url: string
+  /** null when the link couldn't be located. */
+  lat: number | null
+  lng: number | null
+  /** When the link only names the place: that name, which the map searches with Google Places. */
+  query: string | null
+}
+
 export type ItemFields = Pick<Item, 'name' | 'category' | 'area' | 'maps_url' | 'inspo_url' | 'notes'>
 
 export type PlanEntry = {

@@ -1,4 +1,12 @@
-import { useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpDown, UserRound } from "lucide-react";
 import {
@@ -7,6 +15,7 @@ import {
   Fab,
   FilterChip,
   GridSkeleton,
+  MapToggle,
   OptionRow,
   PageTitle,
   SearchField,
@@ -14,7 +23,7 @@ import {
   type Option,
 } from "@/components/browse";
 import { Button, Chip, Sheet, useSticky } from "@/components/ui";
-import { usePlanCounts, useItems } from "@/lib/data";
+import { usePlanCounts, useItems, useLocateMissing } from "@/lib/data";
 import { setMe, useMe } from "@/lib/device";
 import { sections } from "@/lib/sections";
 import type { Item, Section } from "@/lib/types";
@@ -22,6 +31,8 @@ import { local } from "@/lib/utils";
 import { coupleById, trip, type CoupleId } from "@/trip.config";
 import { useOpenSheet } from "../sheets";
 import { ItemCard, ItemRow } from "./ItemCard";
+// The map code only downloads the first time someone opens the map.
+const ItemMap = lazy(() => import("./ItemMap"));
 // Bumped by the pre-commit hook: +0.001 per commit.
 import appVersion from "../../../appversion?raw";
 
@@ -62,6 +73,27 @@ const plannedOptions: Option[] = [
   { value: "unplanned", label: "🗒️ Not planned yet" },
 ];
 
+const noItems: Item[] = [];
+
+/** Where an element's bottom edge is on screen, kept up to date while `active`. */
+function useBottomEdge(ref: RefObject<HTMLElement | null>, active: boolean) {
+  const [bottom, setBottom] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!active || !el) return;
+    const measure = () => setBottom(el.getBoundingClientRect().bottom);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [ref, active]);
+  return bottom;
+}
+
 const allCouples = (r: Item) =>
   trip.couples.every((c) => r.interested.includes(c.id));
 
@@ -84,6 +116,21 @@ export function ItemsPage({ section }: { section: Section }) {
   const [picker, setPicker] = useState<keyof Filters | "sort" | "me" | null>(
     null
   );
+  // The map remembers itself separately, so leaving it returns to the list or grid it came from.
+  const [mapOn, setMapState] = useState(
+    () => meta.map && local.get(`${meta.storagePrefix}map`) === "1"
+  );
+  const setMap = (on: boolean) => {
+    setMapState(on);
+    local.set(`${meta.storagePrefix}map`, on ? "1" : null);
+    window.scrollTo({ top: 0 });
+  };
+  // Locate new or changed links in the background, so pins are ready when the map opens.
+  const { locating, retry: retryLocating } = useLocateMissing(
+    meta.map ? items : noItems
+  );
+  const header = useRef<HTMLElement>(null);
+  const mapTop = useBottomEdge(header, mapOn);
 
   const setSort = (s: SortKey) => (
     setSortState(s),
@@ -168,9 +215,10 @@ export function ItemsPage({ section }: { section: Section }) {
         : picker === "me"
           ? {
               title: "Which couple are you?",
-              options: trip.couples.map(
-                (c): Option => ({ value: c.id, label: `${c.emoji} ${c.name}` })
-              ),
+              options: trip.couples.map((c): Option => ({
+                value: c.id,
+                label: `${c.emoji} ${c.name}`,
+              })),
               value: me,
               clearable: true,
             }
@@ -203,8 +251,11 @@ export function ItemsPage({ section }: { section: Section }) {
   const addItem = () => openSheet({ kind: "form", section });
 
   return (
-    <div className="pb-40">
-      <header className="sticky top-0 z-20 border-b border-line/70 bg-canvas/90 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur-xl">
+    <div className={mapOn ? undefined : "pb-40"}>
+      <header
+        ref={header}
+        className="sticky top-0 z-20 border-b border-line/70 bg-canvas/90 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur-xl"
+      >
         <div className="mx-auto max-w-5xl px-4">
           <div className="flex items-center gap-2">
             <PageTitle title={meta.title} count={items.length} />
@@ -220,7 +271,8 @@ export function ItemsPage({ section }: { section: Section }) {
                 <UserRound className="size-5" />
               )}
             </Button>
-            <ViewToggle view={view} onChange={setView} />
+            {meta.map && <MapToggle on={mapOn} onChange={setMap} />}
+            {!mapOn && <ViewToggle view={view} onChange={setView} />}
           </div>
 
           <SearchField
@@ -270,70 +322,90 @@ export function ItemsPage({ section }: { section: Section }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 pt-4">
-        {isPending ? (
-          <GridSkeleton />
-        ) : items.length === 0 ? (
-          <EmptyState
-            emoji={meta.empty.emoji}
-            title={`No ${meta.nouns} yet`}
-            body={meta.empty.body}
-            action={`Add a ${meta.noun}`}
-            onAction={addItem}
-          />
-        ) : visible.length === 0 ? (
-          <EmptyState
-            emoji="🔍"
-            title="Nothing matches"
-            body="Try a different search or filter."
-            action="Clear filters"
-            onAction={() => {
-              setFilters(noFilters);
-              setQuery("");
-            }}
-          />
-        ) : view === "grid" ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            <AnimatePresence mode="popLayout" initial={false}>
+      {mapOn ? (
+        // Fills the screen between the header and the tab bar.
+        <div
+          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))]"
+          style={{ top: mapTop }}
+        >
+          <Suspense
+            fallback={<div className="h-full animate-pulse bg-line/60" />}
+          >
+            <ItemMap
+              section={section}
+              items={visible}
+              planCounts={counts}
+              locating={locating}
+              onRetry={retryLocating}
+            />
+          </Suspense>
+        </div>
+      ) : (
+        <main className="mx-auto max-w-5xl px-4 pt-4">
+          {isPending ? (
+            <GridSkeleton />
+          ) : items.length === 0 ? (
+            <EmptyState
+              emoji={meta.empty.emoji}
+              title={`No ${meta.nouns} yet`}
+              body={meta.empty.body}
+              action={`Add a ${meta.noun}`}
+              onAction={addItem}
+            />
+          ) : visible.length === 0 ? (
+            <EmptyState
+              emoji="🔍"
+              title="Nothing matches"
+              body="Try a different search or filter."
+              action="Clear filters"
+              onAction={() => {
+                setFilters(noFilters);
+                setQuery("");
+              }}
+            />
+          ) : view === "grid" ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <AnimatePresence mode="popLayout" initial={false}>
+                {visible.map((r) => (
+                  <motion.div
+                    key={r.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <ItemCard
+                      section={section}
+                      item={r}
+                      planned={counts.get(r.id) ?? 0}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface">
               {visible.map((r) => (
-                <motion.div
+                <ItemRow
                   key={r.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <ItemCard
-                    section={section}
-                    item={r}
-                    planned={counts.get(r.id) ?? 0}
-                  />
-                </motion.div>
+                  section={section}
+                  item={r}
+                  planned={counts.get(r.id) ?? 0}
+                />
               ))}
-            </AnimatePresence>
-          </div>
-        ) : (
-          <div className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface">
-            {visible.map((r) => (
-              <ItemRow
-                key={r.id}
-                section={section}
-                item={r}
-                planned={counts.get(r.id) ?? 0}
-              />
-            ))}
-          </div>
-        )}
+            </div>
+          )}
 
-        {section === "eats" && (
-          <p className="mt-10 text-center text-[11px] font-medium text-muted">
-            v{appVersion.trim()}
-          </p>
-        )}
-      </main>
+          {section === "eats" && (
+            <p className="mt-10 text-center text-[11px] font-medium text-muted">
+              v{appVersion.trim()}
+            </p>
+          )}
+        </main>
+      )}
 
-      <Fab label={`Add ${meta.noun}`} onClick={addItem} />
+      {!mapOn && <Fab label={`Add ${meta.noun}`} onClick={addItem} />}
 
       <Sheet
         open={picker !== null}

@@ -39,6 +39,10 @@ _Avoid_: district, zone, region
 Free-text neighbourhood label on a Restaurant or Place. It is not a reference to an Area; matching names only help suggest what to add to an Area.
 _Avoid_: location
 
+**Map**:
+The Eats tab shown as pins instead of a list, each Restaurant located from its Google Maps link. A Restaurant without a link, or with one that can't be read, is "not on the map".
+_Avoid_: location (that's the free-text Area name)
+
 **Good for**:
 The tags on an Area saying what it's good for: Food, Drink, Coffee, Clothes, Groceries, Shopping, Activity, Photo, Chill.
 _Avoid_: for, tags, categories

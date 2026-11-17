@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { Check, ChevronDown, LayoutGrid, List, Plus, Search, X } from 'lucide-react'
+import { Check, ChevronDown, LayoutGrid, List, Map as MapIcon, Plus, Search, X } from 'lucide-react'
 import { Button, Chip, inputClass } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { trip } from '@/trip.config'
@@ -28,6 +28,15 @@ export function ViewToggle({ view, onChange }: { view: 'grid' | 'list'; onChange
       onClick={() => onChange(view === 'grid' ? 'list' : 'grid')}
     >
       {view === 'grid' ? <List className="size-5" /> : <LayoutGrid className="size-5" />}
+    </Button>
+  )
+}
+
+/** Switches between the list (or grid) and the map. */
+export function MapToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <Button variant={on ? 'soft' : 'outline'} size="icon" aria-label={on ? 'Hide map' : 'Show on map'} aria-pressed={on} onClick={() => onChange(!on)}>
+      <MapIcon className="size-5" />
     </Button>
   )
 }
