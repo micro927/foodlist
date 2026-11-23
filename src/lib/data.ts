@@ -61,7 +61,7 @@ const LOCATE_BATCH = 10
  * found for every phone: coordinates, or only the place's name, which the map then searches with Google Places.
  * Each link is tried once per session; `retry` tries the ones that found nothing again.
  */
-export function useLocateMissing(items: Item[]) {
+export function useLocateMissing(items: Pick<Item, 'id' | 'maps_url'>[]) {
   const qc = useQueryClient()
   const online = useOnline()
   const { locations, loaded } = useLocations()

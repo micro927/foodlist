@@ -8,13 +8,11 @@ import {
   OptionRow,
   PageTitle,
   SearchField,
-  ViewButton,
-  viewOptions,
+  ViewToggle,
   type Option,
-  type View,
 } from "@/components/browse";
 import { Cover } from "@/components/Cover";
-import { Chip, Sheet, useSticky } from "@/components/ui";
+import { Chip, Sheet } from "@/components/ui";
 import { useAreas } from "@/lib/data";
 import type { Area } from "@/lib/types";
 import { local } from "@/lib/utils";
@@ -39,15 +37,16 @@ export function AreasPage() {
   const [sort, setSortState] = useState<SortKey>(() =>
     local.get(SORT_KEY) === "newest" ? "newest" : "name"
   );
-  const [view, setViewState] = useState<View>(() =>
+  const [view, setViewState] = useState<"grid" | "list">(() =>
     local.get(VIEW_KEY) === "grid" ? "grid" : "list"
   );
-  const [picker, setPicker] = useState<"sort" | "view" | null>(null);
-  // Keeps the sheet's content while it slides away.
-  const shown = useSticky(picker);
+  const [sorting, setSorting] = useState(false);
 
   const setSort = (s: SortKey) => (setSortState(s), local.set(SORT_KEY, s));
-  const setView = (v: View) => (setViewState(v), local.set(VIEW_KEY, v));
+  const setView = (v: "grid" | "list") => (
+    setViewState(v),
+    local.set(VIEW_KEY, v)
+  );
   const toggleGoodFor = (id: GoodForId) =>
     setGoodFor((list) =>
       list.includes(id) ? list.filter((g) => g !== id) : [...list, id]
@@ -76,7 +75,7 @@ export function AreasPage() {
         <div className="mx-auto max-w-5xl px-4">
           <div className="flex items-center gap-2">
             <PageTitle title="Areas" count={areas.length} />
-            <ViewButton view={view} onClick={() => setPicker("view")} />
+            <ViewToggle view={view} onChange={setView} />
           </div>
 
           <SearchField
@@ -86,7 +85,7 @@ export function AreasPage() {
           />
 
           <div className="no-scrollbar -mx-4 mt-2.5 flex gap-1.5 overflow-x-auto px-4 pb-3">
-            <Chip onClick={() => setPicker("sort")}>
+            <Chip onClick={() => setSorting(true)}>
               <ArrowUpDown className="size-3.5" />{" "}
               {sortOptions.find((o) => o.value === sort)?.label}
             </Chip>
@@ -161,22 +160,16 @@ export function AreasPage() {
 
       <Fab label="Add area" onClick={addArea} />
 
-      <Sheet
-        open={picker !== null}
-        onClose={() => setPicker(null)}
-        title={shown === "view" ? "Show as" : "Sort by"}
-      >
+      <Sheet open={sorting} onClose={() => setSorting(false)} title="Sort by">
         <ul className="space-y-1">
-          {(shown === "view" ? viewOptions(false) : sortOptions).map((o) => (
+          {sortOptions.map((o) => (
             <OptionRow
               key={o.value}
               label={o.label}
-              icon={o.icon}
-              selected={(shown === "view" ? view : sort) === o.value}
+              selected={sort === o.value}
               onClick={() => {
-                if (shown === "view") setView(o.value as View);
-                else setSort(o.value as SortKey);
-                setPicker(null);
+                setSort(o.value as SortKey);
+                setSorting(false);
               }}
             />
           ))}
@@ -219,7 +212,7 @@ function AreaCard({ area }: { area: Area }) {
   );
 }
 
-function AreaRow({ area }: { area: Area }) {
+export function AreaRow({ area }: { area: Area }) {
   const openSheet = useOpenSheet();
   return (
     <article

@@ -1,7 +1,7 @@
 import { coordsFromUrl, isShortMapsLink, placeCoordsFromPage, placeQuery, type LatLng, type LocateResult } from "../src/lib/maplink.js";
 import { fail, tripAccount } from "./_auth.js";
 
-// Eats → Map: finds where each Google Maps link points.
+// Map tab: finds where each Google Maps link points.
 // 1. Coordinates written in the link itself.
 // 2. Short share links (maps.app.goo.gl): follow the redirects, which lead to a full URL with coordinates.
 // 3. Otherwise, the place's name from the link (?q=Ichiran+Shibuya, or a share link that only leads to a name).

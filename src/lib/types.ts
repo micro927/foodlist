@@ -18,10 +18,10 @@ export type Item = {
   updated_at: string
 }
 
-/** Where a Restaurant or Place is, read from its Maps link. Lives in its own table (see ADR 0001). */
+/** Where a Restaurant, Place or Area is, from its Maps link (or an Area's name). Lives in its own table (see ADR 0001). */
 export type ItemLocation = {
   item_id: string
-  /** The link these coordinates came from; once the item's link changes, the row is stale. */
+  /** The link these coordinates came from (`name:<name>` for an Area found by name); once it changes, the row is stale. */
   maps_url: string
   /** null when the link couldn't be located. */
   lat: number | null

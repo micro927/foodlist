@@ -8,9 +8,11 @@ export const trip = {
 
   primaryColor: "#E0452B", // torii vermilion
 
-  // Where the Eats map opens before anything has a location (Tokyo Station), and how close.
+  // Where the Map tab opens before anything has a location (Tokyo Station), and how close.
   mapCenter: [35.681, 139.767] as [number, number],
   mapZoom: 12,
+  // How big an Area's circle is on the map, in metres.
+  areaRadius: 700,
 
   couples: [
     {

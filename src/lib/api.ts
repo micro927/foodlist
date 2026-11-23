@@ -51,7 +51,7 @@ export type Backend = {
   ): Promise<void>;
   deleteEntry(section: Section, id: string): Promise<void>;
 
-  /** Where Restaurants and Places are, for the map. Rows of deleted items may linger and are ignored. */
+  /** Where Restaurants, Places and Areas are, for the map. Rows of deleted ones may linger and are ignored. */
   listLocations(): Promise<ItemLocation[]>;
   saveLocations(rows: ItemLocation[]): Promise<void>;
   /** Finds where each Maps link points, or the place name to search for. Asks /api/locate, which can follow short links. */
@@ -221,6 +221,7 @@ function supabaseBackend(url: string, key: string): Backend {
     },
     async deleteArea(area) {
       must(await db.from("areas").delete().eq("id", area.id));
+      await db.from("item_locations").delete().eq("item_id", area.id);
       if (area.cover_path) await covers.remove([area.cover_path]);
     },
 
@@ -482,6 +483,7 @@ function demoBackend(): Backend {
     },
     async deleteArea(area) {
       store.areas = store.areas.filter((a) => a.id !== area.id);
+      store.locations = store.locations.filter((l) => l.item_id !== area.id);
       save("areas");
     },
 
@@ -704,13 +706,15 @@ function demoSeed() {
       ["d1", 35.6702, 139.7636],
       ["d3", 35.6938, 139.7034],
       ["d5", 35.6609, 139.7005],
+      ["pl2", 35.6585, 139.7022],
+      ["a1", 35.658, 139.7016],
     ] as const
   ).map(([item_id, lat, lng]) => ({
     item_id,
     lat,
     lng,
     query: null,
-    maps_url: restaurants.find((x) => x.id === item_id)!.maps_url!,
+    maps_url: [...restaurants, ...places, ...areas].find((x) => x.id === item_id)!.maps_url!,
   }));
   return { restaurants, plan, places, placePlan, areas, bills, locations };
 }

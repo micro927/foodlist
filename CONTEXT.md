@@ -40,7 +40,7 @@ Free-text neighbourhood label on a Restaurant or Place. It is not a reference to
 _Avoid_: location
 
 **Map**:
-The Eats tab shown as pins instead of a list, each Restaurant located from its Google Maps link. A Restaurant without a link, or with one that can't be read, is "not on the map".
+The tab showing Restaurants and Places as pins and Areas as circles (all of them, or only one kind), each located from its Google Maps link; an Area without a link is found by its name. One that can't be located is "not on the map".
 _Avoid_: location (that's the free-text Area name)
 
 **Good for**:

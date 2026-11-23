@@ -6,6 +6,7 @@ import {
   Lock,
   Map as MapIcon,
   MapPin,
+  MapPinned,
   ReceiptText,
   UtensilsCrossed,
   WifiOff,
@@ -21,6 +22,7 @@ import { trip } from "@/trip.config";
 import { AreasPage } from "@/features/areas/AreasPage";
 import { BillsPage } from "@/features/bills/BillsPage";
 import { ItemsPage } from "@/features/items/ItemsPage";
+import { MapPage } from "@/features/map/MapPage";
 import { PlanPage } from "@/features/plan/PlanPage";
 import { SheetsProvider } from "@/features/sheets";
 
@@ -51,8 +53,8 @@ export function App() {
   );
 }
 
-type Tab = "eats" | "places" | "plan" | "areas" | "bills";
-const tabs: Tab[] = ["eats", "places", "plan", "areas", "bills"];
+type Tab = "eats" | "places" | "map" | "plan" | "areas" | "bills";
+const tabs: Tab[] = ["eats", "places", "map", "plan", "areas", "bills"];
 // Eats lives at the bare path; every other tab has its own hash.
 const readTab = (): Tab =>
   tabs.find((t) => t !== "eats" && location.hash === `#${t}`) ?? "eats";
@@ -91,6 +93,8 @@ function Shell() {
         <ItemsPage key="eats" section="eats" />
       ) : tab === "places" ? (
         <ItemsPage key="places" section="places" />
+      ) : tab === "map" ? (
+        <MapPage />
       ) : tab === "plan" ? (
         <PlanPage />
       ) : tab === "areas" ? (
@@ -100,7 +104,7 @@ function Shell() {
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="mx-auto grid h-16 max-w-md grid-cols-5">
+        <div className="mx-auto grid h-16 max-w-md grid-cols-6">
           <TabButton
             active={tab === "eats"}
             onClick={() => go("eats")}
@@ -112,6 +116,12 @@ function Shell() {
             onClick={() => go("places")}
             icon={<MapPin className="size-6" />}
             label="Places"
+          />
+          <TabButton
+            active={tab === "map"}
+            onClick={() => go("map")}
+            icon={<MapPinned className="size-6" />}
+            label="Map"
           />
           <TabButton
             active={tab === "plan"}

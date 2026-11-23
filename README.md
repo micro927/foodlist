@@ -1,6 +1,6 @@
 # Tokyo 2027 Eats
 
-Our group-trip restaurant list (🍜 **Eats**), things to do (📍 **Places**), day-by-day plan for both (🗓 **Plan**) and neighbourhood guides (🗺️ **Areas**) and shared bill splitting with receipt scanning (🧾 **Bills**) for Micro Bua 💜 and Fair Bee 🐝. Terms are defined in [`CONTEXT.md`](CONTEXT.md).
+Our group-trip restaurant list (🍜 **Eats**), things to do (📍 **Places**), all of it on a map (🗾 **Map**), day-by-day plan for both (🗓 **Plan**) and neighbourhood guides (🗺️ **Areas**) and shared bill splitting with receipt scanning (🧾 **Bills**) for Micro Bua 💜 and Fair Bee 🐝. Terms are defined in [`CONTEXT.md`](CONTEXT.md).
 
 Vite + React + TypeScript, Tailwind v4, TanStack Query, Supabase (Postgres, Storage, Realtime), deployed on Vercel. Bills → Scan reads receipts with Claude through a Vercel function. Installable as a PWA.
 
@@ -14,7 +14,7 @@ npm run dev
 
 **Demo mode:** if the Supabase keys are empty, the app keeps its data in the browser's localStorage. Use it to try things out before setting up a backend.
 
-`npm run dev` also serves the Vercel functions in [`api/`](api/) (Eats → Map locating, Bills → Scan) with the keys in `.env`, so a local Scan spends real Anthropic credit.
+`npm run dev` also serves the Vercel functions in [`api/`](api/) (Map locating, Bills → Scan) with the keys in `.env`, so a local Scan spends real Anthropic credit.
 
 ## Setup checklist
 
@@ -28,13 +28,13 @@ npm run dev
 2. **`.env`:** set `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_APP_EMAIL`. The email is also written in [`supabase/migrations/20261102000000_trip_account.sql`](supabase/migrations/20261102000000_trip_account.sql); change both together.
 3. **Vercel:** import the repo. The framework preset is Vite. Add the same three environment variables and deploy.
    - For Bills → Scan, also add `ANTHROPIC_API_KEY` (from console.anthropic.com; a few dollars of credit covers a trip at roughly $0.04 per scan) and optionally `SCAN_DAILY_LIMIT` (default 30). Without the key, bills still work; lines are added by hand.
-   - Eats → Map needs `VITE_GOOGLE_MAPS_BROWSER_KEY` (and ideally `VITE_GOOGLE_MAP_ID`): see **Google Maps** below. Pins are located from each restaurant's Google Maps link: coordinates in the link, or the link's place name searched with Google Places.
+   - The 🗾 **Map** tab needs `VITE_GOOGLE_MAPS_BROWSER_KEY` (and ideally `VITE_GOOGLE_MAP_ID`): see **Google Maps** below. Pins are located from each restaurant's or place's Google Maps link: coordinates in the link, or the link's place name searched with Google Places. Areas show as circles (size: `areaRadius` in `trip.config.ts`), found by their link or, without one, by their name.
    - [`vercel.json`](vercel.json) schedules a daily cron to [`api/keepalive.ts`](api/keepalive.ts), which pings the database so the free Supabase project never pauses.
 4. **Phones:** open the site, enter the password once, then use Share → **Add to Home Screen**.
 
 ## Google Maps
 
-Eats → Map uses one browser key from a Google Cloud project with billing on. At this app's usage it stays inside Google's free monthly allowance (map loads: 10,000; place searches: 5,000), but set a budget alert anyway.
+The Map tab uses one browser key from a Google Cloud project with billing on. At this app's usage it stays inside Google's free monthly allowance (map loads: 10,000; place searches: 5,000), but set a budget alert anyway.
 
 1. **APIs & Services → Library:** enable **Maps JavaScript API** and **Places API (New)**.
 2. **Browser key** (`VITE_GOOGLE_MAPS_BROWSER_KEY`): Credentials → Create API key. Restrict it to *Maps JavaScript API* and *Places API (New)* and, under *Websites*, to `https://<your-app>.vercel.app/*` and `http://localhost:5173/*`. It's in the page, so the website restriction is what protects it.
@@ -65,7 +65,8 @@ Everything trip-specific is in [`src/trip.config.ts`](src/trip.config.ts): name,
 | `src/lib/api.ts` | The only module that talks to storage (Supabase or demo localStorage) |
 | `src/lib/data.ts` | TanStack Query hooks, optimistic ♥ toggles, live updates |
 | `src/lib/sections.ts` | What differs between Eats and Places (names, category picker, plan slots) |
-| `src/features/items/` | The Eats and Places tabs: list, cards, filters, add/edit form, detail and delete sheets, and the Eats map (`ItemMap.tsx`, Google Maps) |
+| `src/features/items/` | The Eats and Places tabs: list, cards, filters, add/edit form, detail and delete sheets |
+| `src/features/map/` | The Map tab: Restaurants and Places as pins and Areas as circles on a Google map, with All / Eats / Places / Areas pills |
 | `src/features/areas/` | Areas list, detail, form (with restaurant/place pickers) and delete sheet |
 | `src/features/plan/` | Eats / Places switch, two-lane day timeline, "Not scheduled yet", plan entry sheet |
 | `src/features/bills/` | Bills tab (Meal / Person / Date views, who owes whom, mark paid), bill detail, the three-step add/edit sheet, and `split.ts` with all the money maths |

@@ -1,27 +1,54 @@
 import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { AdvancedMarker, APILoadingStatus, APIProvider, Map, useApiLoadingStatus, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
+import {
+  AdvancedMarker,
+  APILoadingStatus,
+  APIProvider,
+  Circle,
+  Map,
+  useApiLoadingStatus,
+  useMap,
+  useMapsLibrary,
+} from '@vis.gl/react-google-maps'
 import { Loader2, LocateFixed, MapPinOff, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, Sheet } from '@/components/ui'
 import { useLocations, useSaveLocations } from '@/lib/data'
 import { isGoogleMapsLink, type LatLng } from '@/lib/maplink'
 import { itemEmoji } from '@/lib/sections'
-import type { Item, ItemLocation, Section } from '@/lib/types'
+import type { Area, Item, ItemLocation, Section } from '@/lib/types'
 import { trip } from '@/trip.config'
+import { areaEmoji } from '../areas/areaItems'
+import { AreaRow } from '../areas/AreasPage'
+import { ItemRow } from '../items/ItemCard'
 import { useOpenSheet } from '../sheets'
-import { ItemRow } from './ItemCard'
 
 // The browser key ends up in the page, so it must be restricted to this site's addresses (see README).
 const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string | undefined) ?? ''
 // Custom HTML pins need a Map ID. Google's DEMO_MAP_ID works for trying it out; make a real one for the trip.
 const mapId = (import.meta.env.VITE_GOOGLE_MAP_ID as string | undefined) || 'DEMO_MAP_ID'
 
-type Located = { item: Item; lat: number; lng: number }
+/** A Restaurant or Place, with which list it's from. */
+export type MapEntry = { section: Section; item: Item }
+type Located = MapEntry & { lat: number; lng: number }
+type LocatedArea = { area: Area; lat: number; lng: number }
+
+// Area circles: a calm blue, apart from the pins' red, purple and amber.
+const AREA_COLOR = '#3a7bd5'
+// Zoomed out, an Area is just its icon; from this zoom in, its circle and name show.
+const AREA_DETAIL_ZOOM = 14
+// Stacking, bottom to top: Areas, then "you are here", then Restaurant and Place pins (circles are always below all).
+const LAYER = { area: 1, here: 2, pin: 3 }
+
+/** The location row an Area is matched against: its Maps link, or its name when it has no link. */
+const areaKey = (area: Area) => area.maps_url || `name:${area.name}`
 
 /** Why an item isn't on the map, and what to do about it. In the order they're listed. */
 const reasons = {
   noLink: { title: 'No Google Maps link', hint: 'Add one in the edit form: Google Maps → Share → Copy link.' },
-  otherLink: { title: 'Not a Google Maps link', hint: 'The link goes somewhere else (Facebook, Instagram…). Replace it with a Google Maps link.' },
+  otherLink: {
+    title: 'Not a Google Maps link',
+    hint: 'The link goes somewhere else (Facebook, Instagram…). Replace it with a Google Maps link.',
+  },
   unreadable: {
     title: "Couldn't find the place",
     hint: 'Google found nothing for this link. Re-share it from Google Maps, or paste the full google.com/maps address from a browser.',
@@ -42,16 +69,20 @@ function ringColor(item: Item) {
   return 'var(--color-muted)'
 }
 
-/** Eats on a Google map: one pin per visible item that has been located. Tapping a pin opens its detail sheet. */
+/**
+ * Restaurants and Places as pins, Areas as circles, on a Google map. Tapping one opens its sheet.
+ * An Area without a Maps link is found by its name (a neighbourhood name means one place, unlike a chain's).
+ */
 export default function ItemMap({
-  section,
-  items,
+  entries,
+  areas,
   planCounts,
   locating,
   onRetry,
 }: {
-  section: Section
-  items: Item[]
+  entries: MapEntry[]
+  areas: Area[]
+  /** Plan entries per item id (ids are unique across Restaurants and Places). */
   planCounts: Map<string, number>
   locating: boolean
   /** Looks up again the links that couldn't be located. */
@@ -61,29 +92,47 @@ export default function ItemMap({
   const { locations } = useLocations()
   const [missingOpen, setMissingOpen] = useState(false)
   const [here, setHere] = useState<LatLng | null>(null)
+  const [zoom, setZoom] = useState<number>(trip.mapZoom)
+  const areaDetail = zoom >= AREA_DETAIL_ZOOM
   const [searching, setSearching] = useState(false)
   // Bumped by "Look up again", so the place-name search also tries again.
   const [searchRound, setSearchRound] = useState(0)
 
-  const { located, missing, toSearch } = useMemo(() => {
+  const { located, missing, toSearch, areasLocated, areasMissing } = useMemo(() => {
     const located: Located[] = []
     // Links that only gave the place's name: searched by name below.
     const toSearch: ItemLocation[] = []
-    const missing: Record<Reason, Item[]> = { noLink: [], otherLink: [], unreadable: [] }
-    for (const item of items) {
+    const missing: Record<Reason, MapEntry[]> = { noLink: [], otherLink: [], unreadable: [] }
+    for (const entry of entries) {
+      const { item } = entry
       const loc = locations.get(item.id)
       // A location read from an older link is stale.
-      if (loc && loc.lat !== null && loc.lng !== null && loc.maps_url === item.maps_url) located.push({ item, lat: loc.lat, lng: loc.lng })
+      if (loc && loc.lat !== null && loc.lng !== null && loc.maps_url === item.maps_url)
+        located.push({ ...entry, lat: loc.lat, lng: loc.lng })
       else {
-        missing[reasonFor(item)].push(item)
+        missing[reasonFor(item)].push(entry)
         if (loc && loc.query && loc.maps_url === item.maps_url) toSearch.push(loc)
       }
     }
-    return { located, missing, toSearch }
-  }, [items, locations])
-  const missingCount = Object.values(missing).reduce((n, list) => n + list.length, 0)
-  // Only Google Maps links are worth looking up again.
-  const retryable = missing.unreadable.length
+
+    const areasLocated: LocatedArea[] = []
+    const areasMissing: Area[] = []
+    for (const area of areas) {
+      const loc = locations.get(area.id)
+      const key = areaKey(area)
+      if (loc && loc.lat !== null && loc.lng !== null && loc.maps_url === key) areasLocated.push({ area, lat: loc.lat, lng: loc.lng })
+      else {
+        areasMissing.push(area)
+        // With a link, the server looks it up first (and may give a name); without one, search the Area's name.
+        if (loc?.query && loc.maps_url === key) toSearch.push(loc)
+        else if (!area.maps_url) toSearch.push({ item_id: area.id, maps_url: key, lat: null, lng: null, query: area.name })
+      }
+    }
+    return { located, missing, toSearch, areasLocated, areasMissing }
+  }, [entries, areas, locations])
+  const missingCount = Object.values(missing).reduce((n, list) => n + list.length, 0) + areasMissing.length
+  // Only Google Maps links and Area names are worth looking up again.
+  const retryable = missing.unreadable.length + areasMissing.length
 
   if (!apiKey)
     return <MapProblem title="The map isn't set up yet" body="Add VITE_GOOGLE_MAPS_BROWSER_KEY to .env (and Vercel), then restart." />
@@ -102,12 +151,41 @@ export default function ItemMap({
             // Tapping Google's own places would open their pop-ups over ours.
             clickableIcons={false}
             className="h-full w-full bg-canvas"
+            onZoomChanged={(e) => setZoom(e.detail.zoom)}
           >
-            {located.map(({ item, lat, lng }) => (
+            {areaDetail &&
+              areasLocated.map(({ area, lat, lng }) => (
+                <Circle
+                  key={area.id}
+                  center={{ lat, lng }}
+                  radius={trip.areaRadius}
+                  strokeColor={AREA_COLOR}
+                  strokeOpacity={0.7}
+                  strokeWeight={2}
+                  fillColor={AREA_COLOR}
+                  fillOpacity={0.12}
+                  onClick={() => openSheet({ kind: 'area', id: area.id })}
+                />
+              ))}
+            {areasLocated.map(({ area, lat, lng }) => (
+              <AdvancedMarker
+                key={`label-${area.id}`}
+                position={{ lat, lng }}
+                title={area.name}
+                zIndex={LAYER.area}
+                onClick={() => openSheet({ kind: 'area', id: area.id })}
+              >
+                <div className={areaDetail ? 'area-label' : 'area-icon'} style={{ '--area': AREA_COLOR } as CSSProperties}>
+                  {areaDetail ? `${areaEmoji} ${area.name}` : areaEmoji}
+                </div>
+              </AdvancedMarker>
+            ))}
+            {located.map(({ section, item, lat, lng }) => (
               <AdvancedMarker
                 key={item.id}
                 position={{ lat, lng }}
                 title={item.name}
+                zIndex={LAYER.pin}
                 onClick={() => openSheet({ kind: 'detail', section, id: item.id })}
               >
                 <div className="item-pin" style={{ '--ring': ringColor(item) } as CSSProperties}>
@@ -119,11 +197,16 @@ export default function ItemMap({
               </AdvancedMarker>
             ))}
             {here && (
-              <AdvancedMarker position={here} zIndex={0}>
+              <AdvancedMarker position={here} zIndex={LAYER.here}>
                 <div className="here-dot" />
               </AdvancedMarker>
             )}
-            <FitToPins points={located} />
+            <FitToPins
+              points={[
+                ...located.map(({ item, lat, lng }) => ({ id: item.id, lat, lng })),
+                ...areasLocated.map(({ area, lat, lng }) => ({ id: area.id, lat, lng })),
+              ]}
+            />
           </Map>
         </MapErrorBoundary>
 
@@ -180,12 +263,27 @@ export default function ItemMap({
                   </h3>
                   <p className="mt-0.5 mb-2 text-xs text-muted">{reasons[reason].hint}</p>
                   <div className="divide-y divide-line overflow-hidden rounded-3xl border border-line">
-                    {missing[reason].map((item) => (
+                    {missing[reason].map(({ section, item }) => (
                       <ItemRow key={item.id} section={section} item={item} planned={planCounts.get(item.id) ?? 0} />
                     ))}
                   </div>
                 </section>
               ))}
+            {areasMissing.length > 0 && (
+              <section>
+                <h3 className="text-sm font-bold">
+                  Areas we couldn't find <span className="font-medium text-muted">{areasMissing.length}</span>
+                </h3>
+                <p className="mt-0.5 mb-2 text-xs text-muted">
+                  Google found nothing for the name. Add a Google Maps link in the area's edit form.
+                </p>
+                <div className="divide-y divide-line overflow-hidden rounded-3xl border border-line">
+                  {areasMissing.map((area) => (
+                    <AreaRow key={area.id} area={area} />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </Sheet>
       </div>
@@ -245,19 +343,34 @@ function FindByName({ rows, round, onSearching }: { rows: ItemLocation[]; round:
   return null
 }
 
-/** Zooms to fit the pins whenever the set of pins changes (search, filters, new locations). */
-function FitToPins({ points }: { points: Located[] }) {
+// The map opens on what's within this distance of the trip's centre; day trips further out are a pan away.
+const FIT_RADIUS_KM = 50
+
+/** Rough distance in km, plenty for "is it near the trip's centre?". */
+function kmFromCenter({ lat, lng }: LatLng) {
+  const [cLat, cLng] = trip.mapCenter
+  const x = (lng - cLng) * Math.cos(((lat + cLat) / 2) * (Math.PI / 180))
+  return Math.hypot(lat - cLat, x) * 111
+}
+
+/**
+ * Zooms to fit the pins and circles whenever they change (pills, new locations): the ones near the trip's centre,
+ * so a day trip (Hakuba, Kawaguchiko) doesn't shrink Tokyo to a dot; all of them if none are near.
+ */
+function FitToPins({ points }: { points: { id: string; lat: number; lng: number }[] }) {
   const map = useMap()
-  const key = points.map((p) => `${p.item.id}:${p.lat},${p.lng}`).join('|')
+  const key = points.map((p) => `${p.id}:${p.lat},${p.lng}`).join('|')
   useEffect(() => {
     if (!map || points.length === 0) return
-    if (points.length === 1) {
-      map.setCenter(points[0])
-      map.setZoom(16)
+    const near = points.filter((p) => kmFromCenter(p) <= FIT_RADIUS_KM)
+    const fit = near.length ? near : points
+    if (fit.length === 1) {
+      map.setCenter(fit[0])
+      map.setZoom(15)
       return
     }
-    const lats = points.map((p) => p.lat)
-    const lngs = points.map((p) => p.lng)
+    const lats = fit.map((p) => p.lat)
+    const lngs = fit.map((p) => p.lng)
     map.fitBounds(
       { north: Math.max(...lats), south: Math.min(...lats), east: Math.max(...lngs), west: Math.min(...lngs) },
       // Room for the pins themselves and the "not on map" chip.

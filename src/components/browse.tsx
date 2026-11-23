@@ -1,13 +1,12 @@
-import type { ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { Check, ChevronDown, LayoutGrid, List, Map as MapIcon, Plus, Search, X } from 'lucide-react'
+import { Check, ChevronDown, LayoutGrid, List, Plus, Search, X } from 'lucide-react'
 import { Button, Chip, inputClass } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { trip } from '@/trip.config'
 
 // Building blocks shared by the Eats, Places, Areas and Bills pages.
 
-export type Option = { value: string; label: string; count?: number; icon?: ReactNode }
+export type Option = { value: string; label: string; count?: number }
 
 export function PageTitle({ title, count }: { title: string; count: number }) {
   return (
@@ -20,26 +19,15 @@ export function PageTitle({ title, count }: { title: string; count: number }) {
   )
 }
 
-/** How Eats, Places and Areas can be shown (only Eats has a map). */
-export type View = 'list' | 'grid' | 'map'
-
-const viewIcons = { list: List, grid: LayoutGrid, map: MapIcon } satisfies Record<View, unknown>
-
-/** The choices for ViewButton's picker; the map only where a section has one. */
-export function viewOptions(withMap: boolean): Option[] {
-  const views: View[] = withMap ? ['list', 'grid', 'map'] : ['list', 'grid']
-  return views.map((v) => {
-    const Icon = viewIcons[v]
-    return { value: v, label: { list: 'List', grid: 'Grid', map: 'Map' }[v], icon: <Icon className="size-5" /> }
-  })
-}
-
-/** Shows the current view; tapping it opens a picker to choose list, grid or map. */
-export function ViewButton({ view, onClick }: { view: View; onClick: () => void }) {
-  const Icon = viewIcons[view]
+export function ViewToggle({ view, onChange }: { view: 'grid' | 'list'; onChange: (v: 'grid' | 'list') => void }) {
   return (
-    <Button variant="outline" size="icon" aria-label={`Show as… (now ${view})`} onClick={onClick}>
-      <Icon className="size-5" />
+    <Button
+      variant="outline"
+      size="icon"
+      aria-label={view === 'grid' ? 'Show as list' : 'Show as grid'}
+      onClick={() => onChange(view === 'grid' ? 'list' : 'grid')}
+    >
+      {view === 'grid' ? <List className="size-5" /> : <LayoutGrid className="size-5" />}
     </Button>
   )
 }
@@ -77,19 +65,7 @@ export function FilterChip({ label, active, onClick }: { label: string; active: 
   )
 }
 
-export function OptionRow({
-  label,
-  count,
-  icon,
-  selected,
-  onClick,
-}: {
-  label: string
-  count?: number
-  icon?: ReactNode
-  selected: boolean
-  onClick: () => void
-}) {
+export function OptionRow({ label, count, selected, onClick }: { label: string; count?: number; selected: boolean; onClick: () => void }) {
   return (
     <li>
       <button
@@ -100,7 +76,6 @@ export function OptionRow({
           selected ? 'bg-primary-soft font-semibold text-primary' : 'active:bg-canvas',
         )}
       >
-        {icon}
         <span className="flex-1 truncate">{label}</span>
         {count !== undefined && <span className="text-sm text-muted">{count}</span>}
         {selected && <Check className="size-4" />}

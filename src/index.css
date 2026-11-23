@@ -55,7 +55,7 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Eats map pins: the category emoji in a white badge with a tail, ringed by who wants to go; a dot when planned.
+/* Map pins: the category emoji in a white badge with a tail, ringed by who wants to go; a dot when planned.
    Google anchors a pin at its bottom centre, so the tail's tip sits on the place. */
 .item-pin {
   display: flex;
@@ -93,7 +93,35 @@ body {
   border: 2px solid var(--color-surface);
 }
 
-/* "You are here" on the Eats map. */
+/* An Area on the map: zoomed out just its icon, zoomed in its name at the middle of its circle.
+   Google anchors at the bottom centre, so both are nudged down to sit centred on the spot. */
+.area-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  transform: translateY(50%);
+  border-radius: 9999px;
+  background: var(--color-surface);
+  border: 2px solid var(--area);
+  font-size: 15px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+}
+.area-label {
+  transform: translateY(50%);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: var(--color-surface);
+  border: 2px solid var(--area);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+}
+
+/* "You are here" on the map. */
 .here-dot {
   width: 18px;
   height: 18px;

@@ -6,7 +6,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 /**
- * `npm run dev` serves the Vercel functions in api/ too (Eats → Map locating, Bills → Scan), so they work
+ * `npm run dev` serves the Vercel functions in api/ too (Map locating, Bills → Scan), so they work
  * locally without `vercel dev`. They read .env like on Vercel; variables already set in the shell win.
  */
 function devApi(): Plugin {
