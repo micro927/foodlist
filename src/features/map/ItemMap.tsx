@@ -35,7 +35,7 @@ type LocatedArea = { area: Area; lat: number; lng: number }
 // Area circles: a calm blue, apart from the pins' red, purple and amber.
 const AREA_COLOR = '#3a7bd5'
 // Zoomed out, an Area is just its icon; from this zoom in, its circle and name show.
-const AREA_DETAIL_ZOOM = 14
+const AREA_DETAIL_ZOOM = 12
 // Stacking, bottom to top: Areas, then "you are here", then Restaurant and Place pins (circles are always below all).
 const LAYER = { area: 1, here: 2, pin: 3 }
 
