@@ -53,8 +53,8 @@ export function App() {
   );
 }
 
-type Tab = "eats" | "places" | "map" | "plan" | "areas" | "bills";
-const tabs: Tab[] = ["eats", "places", "map", "plan", "areas", "bills"];
+type Tab = "eats" | "places" | "areas" | "map" | "plan" | "bills";
+const tabs: Tab[] = ["eats", "places", "areas", "map", "plan", "bills"];
 // Eats lives at the bare path; every other tab has its own hash.
 const readTab = (): Tab =>
   tabs.find((t) => t !== "eats" && location.hash === `#${t}`) ?? "eats";
@@ -118,6 +118,12 @@ function Shell() {
             label="Places"
           />
           <TabButton
+            active={tab === "areas"}
+            onClick={() => go("areas")}
+            icon={<MapIcon className="size-6" />}
+            label="Areas"
+          />
+          <TabButton
             active={tab === "map"}
             onClick={() => go("map")}
             icon={<MapPinned className="size-6" />}
@@ -128,12 +134,6 @@ function Shell() {
             onClick={() => go("plan")}
             icon={<CalendarDays className="size-6" />}
             label="Plan"
-          />
-          <TabButton
-            active={tab === "areas"}
-            onClick={() => go("areas")}
-            icon={<MapIcon className="size-6" />}
-            label="Areas"
           />
           <TabButton
             active={tab === "bills"}
